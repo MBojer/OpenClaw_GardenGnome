@@ -27,7 +27,7 @@
 ## First run / agent onboarding (`/gnome`)
 
 1. **State file:** the agent uses **`.openclaw/gardengnome-state.json`** (gitignored). Template: **`config/gardengnome-state.example.json`**. Tracks profile, identity, location, and whether historical weather backfill ran.
-2. **Location:** city, address, or lat/lon. Use **`python3 scripts/geocode_garden.py`** — **`search`** lists candidates (refine if none); user must **confirm** before **`apply-search`** or **`apply-coords`**. **`smoke`** checks bounds and a minimal Open-Meteo forecast. See **`AGENTS.md`** for the full `/gnome` checklist.
+2. **Location:** city, address, or lat/lon. Use **`python3 scripts/geocode_garden.py`** — **`search`** lists candidates (refine if none); user must **confirm** before **`apply-search`** or **`apply-coords`**. **`smoke`** checks bounds and a minimal Open-Meteo forecast (and prints an inferred **IANA timezone**). **`apply-coords`** can omit **`--timezone`**; Open-Meteo supplies **`GARDEN_TIMEZONE`**. Profile onboarding should not ask for timezone separately when location will set it; sync **`USER.md`** from **`config/garden.env`** after location. See **`AGENTS.md`** for the full `/gnome` checklist.
 3. **After location is applied** to **`config/garden.env`**, populate **`garden.weather_log`** with **`python3 scripts/weather_historical_backfill.py`** (needs **`GARDEN_DB_URL`**, network, migration **`004`**).
 
 ## Weather stack

@@ -6,7 +6,7 @@ Subcommands:
   search QUERY           — list numbered candidates (exit 1 if none)
   smoke LAT LON          — bounds check + forecast API smoke test
   apply-search QUERY --index N   — pick candidate, smoke, then set GARDEN_LAT/LON/TIMEZONE
-  apply-coords LAT LON --timezone TZ — smoke, then set the three keys
+  apply-coords LAT LON [--timezone TZ] — smoke, then set the three keys (timezone from Open-Meteo if omitted)
 """
 from __future__ import annotations
 
@@ -120,8 +120,8 @@ def parse_lat_lon(a: str, b: str) -> tuple[float, float]:
     return lat, lon
 
 
-def smoke_forecast(lat: float, lon: float, base: str) -> None:
-    """Minimal forecast request; raises SystemExit on failure."""
+def fetch_forecast_smoke(lat: float, lon: float, base: str) -> dict:
+    """Minimal forecast request; returns JSON on success; raises SystemExit on failure."""
     q = urllib.parse.urlencode(
         {
             "latitude": lat,
@@ -144,21 +144,32 @@ def smoke_forecast(lat: float, lon: float, base: str) -> None:
     times = daily.get("time")
     if not isinstance(times, list) or len(times) < 1:
         raise SystemExit("forecast daily.time empty — location may be invalid for weather data")
+    return data
+
+
+def resolve_timezone(data: dict, preferred: str | None) -> str:
+    tz = (preferred or "").strip() or (str(data.get("timezone") or "")).strip()
+    if not tz:
+        raise SystemExit(
+            "Could not derive IANA timezone (Open-Meteo returned none); pass --timezone explicitly."
+        )
+    return tz
 
 
 def apply_coords(
     env_path: Path,
     lat: float,
     lon: float,
-    timezone: str,
+    timezone_preferred: str | None,
     *,
     forecast_base: str,
 ) -> None:
-    smoke_forecast(lat, lon, forecast_base)
+    data = fetch_forecast_smoke(lat, lon, forecast_base)
+    timezone = resolve_timezone(data, timezone_preferred)
     merge_env_key(env_path, "GARDEN_LAT", str(lat))
     merge_env_key(env_path, "GARDEN_LON", str(lon))
     merge_env_key(env_path, "GARDEN_TIMEZONE", timezone)
-    print(f"Updated {env_path}: GARDEN_LAT, GARDEN_LON, GARDEN_TIMEZONE")
+    print(f"Updated {env_path}: GARDEN_LAT, GARDEN_LON, GARDEN_TIMEZONE={timezone}")
 
 
 def cmd_search(args: argparse.Namespace) -> int:
@@ -175,8 +186,11 @@ def cmd_smoke(args: argparse.Namespace) -> int:
     load_garden_env(root)
     lat, lon = parse_lat_lon(args.lat, args.lon)
     base = os.environ.get("OPEN_METEO_URL", "https://api.open-meteo.com")
-    smoke_forecast(lat, lon, base)
+    data = fetch_forecast_smoke(lat, lon, base)
     print("OK: coordinates accepted and Open-Meteo returned daily data.")
+    tzi = data.get("timezone")
+    if tzi:
+        print(f"Inferred timezone: {tzi}")
     return 0
 
 
@@ -199,14 +213,11 @@ def cmd_apply_search(args: argparse.Namespace) -> int:
     r = results[idx - 1]
     lat = float(r["latitude"])
     lon = float(r["longitude"])
-    tz = r.get("timezone") or ""
-    if not tz:
-        print("Geocoder returned no timezone; use apply-coords with --timezone.", file=sys.stderr)
-        return 1
+    tz_hint = (r.get("timezone") or "").strip() or None
 
     forecast_base = os.environ.get("OPEN_METEO_URL", "https://api.open-meteo.com")
     print(f"Applying: {candidate_label(r)}")
-    apply_coords(env_path, lat, lon, tz, forecast_base=forecast_base)
+    apply_coords(env_path, lat, lon, tz_hint, forecast_base=forecast_base)
     return 0
 
 
@@ -219,13 +230,10 @@ def cmd_apply_coords(args: argparse.Namespace) -> int:
         return 1
 
     lat, lon = parse_lat_lon(args.lat, args.lon)
-    tz = args.timezone.strip()
-    if not tz:
-        print("--timezone is required for apply-coords", file=sys.stderr)
-        return 1
+    tz_pref = args.timezone.strip() if args.timezone else None
 
     forecast_base = os.environ.get("OPEN_METEO_URL", "https://api.open-meteo.com")
-    apply_coords(env_path, lat, lon, tz, forecast_base=forecast_base)
+    apply_coords(env_path, lat, lon, tz_pref, forecast_base=forecast_base)
     return 0
 
 
@@ -259,7 +267,11 @@ def main() -> int:
     p_ac = sub.add_parser("apply-coords", help="apply explicit coordinates after smoke test")
     p_ac.add_argument("lat")
     p_ac.add_argument("lon")
-    p_ac.add_argument("--timezone", required=True)
+    p_ac.add_argument(
+        "--timezone",
+        default=None,
+        help="IANA timezone; if omitted, use Open-Meteo forecast metadata for these coordinates",
+    )
     p_ac.add_argument("--garden-env", help="path to garden.env (default: <repo>/config/garden.env)")
     p_ac.set_defaults(func=cmd_apply_coords)
 
