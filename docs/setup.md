@@ -9,6 +9,7 @@
 
 ## Re-running installer safely
 
+- **User-owned docs** at the repo root — **`USER.md`**, **`SOUL.md`**, **`TOOLS.md`**, **`IDENTITY.md`**, **`HEARTBEAT.md`** — are **gitignored**. Starters ship under **`templates/`**; **`install.sh`** copies each to the root **only when that file is missing**, so **`git pull` / reinstall does not clobber** filled-in content.
 - `.env` is not overwritten if it already exists.
 - New keys in `.env.example` (e.g. **`GARDENGNOME_DATABASE_URL`**) must be merged into an existing **`.env`** by hand.
 - When **`GARDENGNOME_DATABASE_URL`** is set, the installer **requires `psql`** on `PATH` (or offers to install **`postgresql-client`** / **`libpq`** in interactive mode). Then **`install/setup_db.sh`** runs **`psql`** `SELECT 1`, applies **pending** core **`db/postgres/*.sql`** unless **`GARDENGNOME_DB_APPLY_SCHEMA=0`**, and handles seeds per **`GARDENGNOME_DB_APPLY_SEEDS`** (**`0`** / **`auto`** / **`1`**). **`GARDENGNOME_DB_SKIP_INIT=1`** skips prompts, the **`psql`** check, connectivity test, migrations, and seeds.

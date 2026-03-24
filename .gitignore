@@ -1,6 +1,13 @@
 .env
 config/garden.env
 .openclaw/gardengnome-state.json
+
+# User-owned workspace docs (seeded from templates/ on first install only; never overwritten by git pull)
+/USER.md
+/SOUL.md
+/TOOLS.md
+/IDENTITY.md
+/HEARTBEAT.md
 logs/
 briefings/
 *.log

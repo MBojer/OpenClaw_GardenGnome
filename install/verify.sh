@@ -15,6 +15,7 @@ for required in \
   "db/postgres/004_garden_weather.sql" \
   "db/postgres/seeds/003_example_openclaw_context.sql" \
   "config/garden.env.template" "config/gardengnome-state.example.json" \
+  "templates/USER.md" "templates/SOUL.md" "templates/TOOLS.md" "templates/IDENTITY.md" "templates/HEARTBEAT.md" \
   "scripts/constrained_llm_pipeline.py" \
   "scripts/geocode_garden.py" \
   "scripts/weather_parse.py" "scripts/weather_historical_backfill.py" "scripts/weather_alerts.py" \

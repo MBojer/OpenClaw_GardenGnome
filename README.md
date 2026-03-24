@@ -124,7 +124,7 @@ Running `./install.sh` from a checkout still **clones or pulls into `GARDENGNOME
 
 1. Ensures **bash** is available, then resolves **prerequisites** (with optional prompts / auto-install as above).
 2. **Bootstrap** the workspace: `git clone` into `GARDENGNOME_ROOT`, or **`git pull --ff-only`** if it is already a git worktree. Fails clearly if the directory exists, is **non-empty**, and is **not** a repository.
-3. Creates **`.env`** from **`.env.example`** if missing (existing **`.env`** is kept). Merge new keys from **`.env.example`** by hand if you already have a **`.env`** from an older install.
+3. Creates **`.env`** from **`.env.example`** if missing (existing **`.env`** is kept). Merge new keys from **`.env.example`** by hand if you already have a **`.env`** from an older install. Seeds **user-owned** root docs (**`USER.md`**, **`SOUL.md`**, **`TOOLS.md`**, **`IDENTITY.md`**, **`HEARTBEAT.md`**) from **`templates/`** only when each file is missing (so upgrades preserve your edits).
 4. Optionally records **`GARDENGNOME_DATABASE_URL`**: interactive prompt (TTY), or **`export`** before install, writes into **`.env`** via **`install/merge_env_key.py`**. Skipped when **`GARDENGNOME_DB_SKIP_INIT=1`** or the URL is already set in **`.env`**. Creates **`config/garden.env`** from **`config/garden.env.template`** when missing and sets **`GARDEN_DB_URL`** from **`GARDENGNOME_DATABASE_URL`** when set (on later runs, still replaces a template **`user:pass`** placeholder). Then installs **`python3 -m pip install -r`** for **`install/requirements-weather.txt`** and **`install/requirements-constrained-llm.txt`** (skipped when **`GARDENGNOME_SKIP_PIP_REQUIREMENTS=1`** or **`pip`** is missing — install **`python3-pip`**).
 5. Runs **`install/setup_db.sh`**: if the URL is **unset**, skips DB work; if **set**, runs **`psql`** connectivity, then applies **missing** core migrations in **`db/postgres/*.sql`** (unless **`GARDENGNOME_DB_APPLY_SCHEMA=0`**), **skipping** filenames with **`seed`/`example`** and ids already in **`schema_migrations`**. Seeds: **`GARDENGNOME_DB_APPLY_SEEDS`** **`auto`** (default) prefills example context when **`sender_profiles`** is empty; **`1`** always; **`0`** never.
 6. Registers the **`AGENT_NAME`** agent with **`openclaw agents add --workspace "$GARDENGNOME_ROOT"`**, skipping registration if **`openclaw agents list --json`** already contains that name (**`jq`**, not `grep`).
@@ -140,7 +140,7 @@ Re-running is **idempotent**: safe to run again; `.env` is preserved; agent add 
 - **Git only:** `cd "$GARDENGNOME_ROOT" && git pull --ff-only`
 - **Or** re-run the one-liner / `./install.sh` (it will fetch and fast-forward when possible).
 
-Local secrets and ignored files (e.g. **`.env`**) should stay out of git; see **`.gitignore`**.
+Local secrets, **`.env`**, and **user-owned workspace docs** (**`USER.md`**, **`SOUL.md`**, **`TOOLS.md`**, **`IDENTITY.md`**, **`HEARTBEAT.md`**) stay out of git; starters live in **`templates/`**. See **`.gitignore`**.
 
 ## First run after install
 

@@ -15,12 +15,22 @@ Until **`setup_minimum_complete`**:
 
 After **`setup_minimum_complete`**, you may answer freely and offer help as usual. **`IDENTITY.md`** and **weather backfill** come **only after** name + location (identity is optional and skippable; weather follows existing steps).
 
+## User-owned workspace files (`templates/` vs live)
+
+These root files are **user-owned** and **not** updated from git on pull: **`USER.md`**, **`SOUL.md`**, **`TOOLS.md`**, **`IDENTITY.md`**, **`HEARTBEAT.md`**.
+
+- **Starters** live in **`templates/`** (same filenames). **`install.sh`** copies **`templates/X.md` → `X.md`** only when **`X.md` is missing** — clean install gets defaults; **upgrades never overwrite** existing files.
+- **Never** replace the **whole** live file with the **`templates/`** version if **`X.md` already exists** — that would wipe the user when the repo updates or on a bad “reset”.
+- **Never** delete these files to reset them.
+- **Edits:** patch **only** the lines or sections you need (e.g. fill **Name** in **`USER.md`**). Do not paste an entire template over a file that already has user content.
+- If **`USER.md`** (or another) is **missing**: run **`cp templates/<same-name>.md ./<same-name>.md`** once, then edit minimally. Same rule: afterward, treat the file as user-owned.
+
 ## First session: check onboarding
 
 1. Read **`.openclaw/gardengnome-state.json`**. If it is missing, create it by copying the shape from **`config/gardengnome-state.example.json`** (same keys; use `null` for unfinished steps).
-2. If **`onboarding.profileDoneAt`** is null: run the **profile** step — **required:** at least **name** in **`USER.md`**. Optional: *What to call them* / pronouns. **Do not ask for timezone** when they will give **city, address, or coordinates** for location (derive from **`GARDEN_TIMEZONE`** after location). After **`onboarding.locationDoneAt`** is set, copy **`GARDEN_TIMEZONE`** from **`config/garden.env`** into the **Timezone** field in **`USER.md`**. Only ask for a manual timezone if location is somehow impossible (exceptional); user **cannot** skip giving **name** or **location** to satisfy **`setup_minimum_complete`**.
+2. If **`onboarding.profileDoneAt`** is null: run the **profile** step — **required:** at least **name** in **`USER.md`**. If **`USER.md`** does not exist, **`cp templates/USER.md USER.md`** once first. Optional: *What to call them* / pronouns. **Do not ask for timezone** when they will give **city, address, or coordinates** for location (derive from **`GARDEN_TIMEZONE`** after location). After **`onboarding.locationDoneAt`** is set, copy **`GARDEN_TIMEZONE`** from **`config/garden.env`** into the **Timezone** field in **`USER.md`**. Only ask for a manual timezone if location is somehow impossible (exceptional); user **cannot** skip giving **name** or **location** to satisfy **`setup_minimum_complete`**.
 3. If **`onboarding.locationDoneAt`** is null: run **location** (see **`/gnome`** below) **as soon as name is saved**. **Required** — same priority as name. Only set **`onboarding.locationDoneAt`** and **`locationLabel`** after **`config/garden.env`** has **`GARDEN_LAT`**, **`GARDEN_LON`**, **`GARDEN_TIMEZONE`** and the user has **confirmed** the place.
-4. If **`onboarding.identityDoneAt`** is null and **`identitySkipped`** is false: only **after** **`setup_minimum_complete`**, offer **`IDENTITY.md`** briefly; if the user declines, set **`identitySkipped`** to **true** (and **`identityDoneAt`** if you use it). **Never** insert identity before **location** — name → location first.
+4. If **`onboarding.identityDoneAt`** is null and **`identitySkipped`** is false: only **after** **`setup_minimum_complete`**, offer **`IDENTITY.md`** briefly; if **`IDENTITY.md`** is missing when they engage, **`cp templates/IDENTITY.md IDENTITY.md`** once. If the user declines, set **`identitySkipped`** to **true** (and **`identityDoneAt`** if you use it). **Never** insert identity before **location** — name → location first.
 5. If **`weather.historicalBackfillAt`** is null: after **`setup_minimum_complete`**, ensure **`GARDEN_DB_URL`** is set, weather migration is applied, then run **`python3 scripts/weather_historical_backfill.py`** from the repo root. On success, set **`weather.historicalBackfillAt`** to an ISO timestamp.
 
 ## Command: `/gnome` (onboarding + garden location)

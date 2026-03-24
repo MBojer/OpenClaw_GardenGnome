@@ -489,6 +489,18 @@ ensure_garden_env() {
   fi
 }
 
+# User-owned markdown at repo root: copy from templates/ only when missing (gitignored; never overwrite on upgrade).
+ensure_workspace_personal_docs() {
+  local root="$1"
+  local f
+  for f in USER.md SOUL.md TOOLS.md IDENTITY.md HEARTBEAT.md; do
+    if [[ ! -f "$root/$f" ]] && [[ -f "$root/templates/$f" ]]; then
+      cp "$root/templates/$f" "$root/$f"
+      echo "Created $f from templates/$f (user-owned; git pull will not replace it)"
+    fi
+  done
+}
+
 step "GardenGnome installer — prerequisites"
 require_cmd bash
 ensure_prerequisites
@@ -540,6 +552,7 @@ if [[ -f "$ROOT/.env" ]]; then
   set +a
 fi
 ensure_garden_env "$ROOT"
+ensure_workspace_personal_docs "$ROOT"
 install_python_requirements "$ROOT"
 
 step "2/8 Database (connectivity + optional schema)"
