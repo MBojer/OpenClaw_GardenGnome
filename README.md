@@ -12,7 +12,8 @@ This repository is currently **scaffold-only**. Installer, structure, and docs a
              -> git clone or pull into ~/.openclaw/workspace-gardengnome (default)
              -> .env bootstrap
              -> agent registration (jq-based idempotency)
-             -> gateway start/restart so the agent is visible in Web UI
+             -> gateway start/restart so config reloads in the Control UI
+             -> optional gateway session bootstrap (so Sessions lists the agent)
              -> cron scaffold step
              -> verification
 
@@ -86,6 +87,7 @@ Other useful environment variables:
 | `GARDENGNOME_REPO_REF` | `main` | Branch or tag to check out |
 | `AGENT_NAME` | `gardengnome` | Agent name in OpenClaw |
 | `OPENCLAW_MODEL` | `openrouter/stepfun/step-3.5-flash:free` | Model passed to `openclaw agents add` |
+| `GARDENGNOME_BOOTSTRAP_SESSION` | `1` | If `1`, runs one `openclaw agent` turn when no gateway session exists yet (uses your model; set `0` to skip) |
 
 ## Manual install (from a git checkout)
 
@@ -108,8 +110,9 @@ Running `./install.sh` from a checkout still **clones or pulls into `GARDENGNOME
 4. Runs scaffold **database** placeholder step.
 5. Registers the **`AGENT_NAME`** agent with **`openclaw agents add --workspace "$GARDENGNOME_ROOT"`**, skipping registration if **`openclaw agents list --json`** already contains that name (**`jq`**, not `grep`).
 6. Ensures the **OpenClaw gateway service** is running (installs/starts if needed, restarts when already running) so agent changes are reflected in the dashboard/Web UI.
-7. Runs the **cron** scaffold helper (`install/setup_cron.py`).
-8. Runs **`install/verify.sh`**.
+7. **Bootstraps a gateway session** for **`AGENT_NAME`** when none exists yet (one `openclaw agent` turn so **Control UI → Sessions** shows `agent:<name>:…`). Skipped when `GARDENGNOME_BOOTSTRAP_SESSION=0` or a session already exists.
+8. Runs the **cron** scaffold helper (`install/setup_cron.py`).
+9. Runs **`install/verify.sh`**.
 
 Re-running is **idempotent**: safe to run again; `.env` is preserved; agent add is skipped when already registered.
 
@@ -125,8 +128,11 @@ Local secrets and ignored files (e.g. **`.env`**) should stay out of git; see **
 ```bash
 openclaw health
 openclaw agents list
+openclaw gateway call sessions.list --json
 openclaw dashboard
 ```
+
+**Control UI:** registered agents appear under **AI & Agents → Agents**. The **Sessions** list only includes agents after at least one gateway chat run exists; the installer creates that on first install unless you set `GARDENGNOME_BOOTSTRAP_SESSION=0`. In **Chat**, use the agent picker if you still see only the default agent.
 
 Then implement features in `scripts/`, `skills/`, and `db/`.
 

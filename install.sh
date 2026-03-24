@@ -189,9 +189,43 @@ agent_already_registered() {
   json="$(openclaw agents list --json 2>/dev/null)" || return 1
   echo "$json" | jq -e --arg n "$AGENT_NAME" '
     (if type == "array" then . else (.agents // []) end)
-    | map(select(.name == $n))
+    | map(select((.name // .id) == $n))
     | length > 0
   ' >/dev/null 2>&1
+}
+
+agent_has_gateway_session() {
+  local json
+  json="$(openclaw gateway call sessions.list --json 2>/dev/null)" || return 1
+  echo "$json" | jq -e --arg id "$AGENT_NAME" '
+    (.sessions // [])
+    | map(.key // "")
+    | any(startswith("agent:" + $id + ":"))
+  ' >/dev/null 2>&1
+}
+
+maybe_bootstrap_agent_session() {
+  [[ "${GARDENGNOME_BOOTSTRAP_SESSION:-1}" == "0" ]] && {
+    echo "GARDENGNOME_BOOTSTRAP_SESSION=0 — skipping gateway session bootstrap."
+    return 0
+  }
+
+  if agent_has_gateway_session; then
+    echo "Gateway session for '$AGENT_NAME' already exists; skipping bootstrap."
+    return 0
+  fi
+
+  echo "No gateway session yet for '$AGENT_NAME'. Running one bootstrap turn via the Gateway"
+  echo "(so Control UI → Sessions lists this agent). Set GARDENGNOME_BOOTSTRAP_SESSION=0 to skip."
+
+  if openclaw agent --agent "$AGENT_NAME" \
+    --message "GardenGnome install bootstrap. Reply with exactly: HEARTBEAT_OK" \
+    --json >/dev/null 2>&1; then
+    echo "Bootstrap complete."
+  else
+    echo "WARN: Bootstrap run failed (model credentials or gateway). When ready, run:"
+    echo "  openclaw agent --agent $AGENT_NAME --message 'Hello' --json"
+  fi
 }
 
 gateway_rpc_healthy() {
@@ -255,13 +289,13 @@ fi
 
 echo "Repository root: $ROOT"
 
-step "1/6 Setup environment"
+step "1/8 Setup environment"
 bash "$ROOT/install/setup_env.sh" "$ROOT"
 
-step "2/6 Database migration placeholder"
+step "2/8 Database migration placeholder"
 echo "Scaffold phase: no database migrations to run yet."
 
-step "3/6 Register OpenClaw agent"
+step "3/8 Register OpenClaw agent"
 agent_was_added=0
 if agent_already_registered; then
   echo "Agent '$AGENT_NAME' already registered; skipping."
@@ -275,7 +309,7 @@ else
   agent_was_added=1
 fi
 
-step "4/7 Ensure OpenClaw gateway is running"
+step "4/8 Ensure OpenClaw gateway is running"
 if ensure_gateway_running; then
   if [[ "$agent_was_added" -eq 1 ]]; then
     echo "Gateway is running and reloaded for new agent visibility."
@@ -288,17 +322,25 @@ else
   echo "      Then check: openclaw gateway status"
 fi
 
-step "5/7 Setup cron scaffolding"
+step "5/8 Bootstrap Control UI session"
+if gateway_rpc_healthy; then
+  maybe_bootstrap_agent_session
+else
+  echo "WARN: Gateway not healthy; cannot bootstrap session yet."
+fi
+
+step "6/8 Setup cron scaffolding"
 python3 "$ROOT/install/setup_cron.py"
 
-step "6/7 Verify installation"
+step "7/8 Verify installation"
 bash "$ROOT/install/verify.sh" "$ROOT"
 
-step "7/7 Done"
+step "8/8 Done"
 echo ""
 echo "GardenGnome installation complete."
 echo "Next steps:"
 echo "  1) Edit .env values in $ROOT"
 echo "  2) Run: openclaw health"
 echo "  3) Open dashboard with: openclaw dashboard"
-echo "  4) Update with: cd $ROOT && git pull --ff-only  (or rerun this installer)"
+echo "  4) In Chat, use the agent picker if you still see only the default agent (main)."
+echo "  5) Update with: cd $ROOT && git pull --ff-only  (or rerun this installer)"
