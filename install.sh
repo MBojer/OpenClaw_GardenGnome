@@ -249,6 +249,56 @@ ensure_gateway_running() {
   gateway_rpc_healthy
 }
 
+env_file_has_nonempty_database_url() {
+  local envf="$1"
+  [[ -f "$envf" ]] || return 1
+  grep -qE '^GARDENGNOME_DATABASE_URL=.+' "$envf" 2>/dev/null
+}
+
+merge_or_prompt_database_url() {
+  local root="$1"
+  local envf="$2"
+  local merger="$root/install/merge_env_key.py"
+
+  [[ -f "$envf" ]] || return 0
+  [[ -f "$merger" ]] || {
+    echo "WARN: Missing $merger — cannot record database URL."
+    return 0
+  }
+
+  if grep -q '^GARDENGNOME_DB_SKIP_INIT=1' "$envf" 2>/dev/null \
+    || [[ "${GARDENGNOME_DB_SKIP_INIT:-0}" == "1" ]]; then
+    echo "GARDENGNOME_DB_SKIP_INIT=1 — skipping database URL prompt."
+    return 0
+  fi
+
+  if [[ -n "${GARDENGNOME_DATABASE_URL:-}" ]]; then
+    python3 "$merger" "$envf" GARDENGNOME_DATABASE_URL "$GARDENGNOME_DATABASE_URL"
+    echo "Recorded GARDENGNOME_DATABASE_URL from the environment."
+    return 0
+  fi
+
+  if env_file_has_nonempty_database_url "$envf"; then
+    return 0
+  fi
+
+  if ! is_interactive_install; then
+    echo "Non-interactive install: set GARDENGNOME_DATABASE_URL in .env or export it before running the installer."
+    return 0
+  fi
+
+  local url
+  echo ""
+  echo "Optional: PostgreSQL connection URL (local or remote), e.g."
+  echo "  postgresql://user:pass@host:5432/gardengnome?sslmode=prefer"
+  echo "Press Enter to skip — you can edit .env later or re-run this installer."
+  read_tty "GARDENGNOME_DATABASE_URL: " url
+  url="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' <<< "$url")"
+  [[ -z "$url" ]] && return 0
+  python3 "$merger" "$envf" GARDENGNOME_DATABASE_URL "$url"
+  echo "Saved GARDENGNOME_DATABASE_URL to .env"
+}
+
 step "GardenGnome installer — prerequisites"
 require_cmd bash
 ensure_prerequisites
@@ -291,9 +341,10 @@ echo "Repository root: $ROOT"
 
 step "1/8 Setup environment"
 bash "$ROOT/install/setup_env.sh" "$ROOT"
+merge_or_prompt_database_url "$ROOT" "$ROOT/.env"
 
-step "2/8 Database migration placeholder"
-echo "Scaffold phase: no database migrations to run yet."
+step "2/8 Database (connectivity + optional schema)"
+bash "$ROOT/install/setup_db.sh" "$ROOT"
 
 step "3/8 Register OpenClaw agent"
 agent_was_added=0
@@ -339,7 +390,7 @@ step "8/8 Done"
 echo ""
 echo "GardenGnome installation complete."
 echo "Next steps:"
-echo "  1) Edit .env values in $ROOT"
+echo "  1) Edit .env in $ROOT (GARDENGNOME_DATABASE_URL, GARDENGNOME_DB_APPLY_SCHEMA=1 to apply db/postgres/*.sql)"
 echo "  2) Run: openclaw health"
 echo "  3) Open dashboard with: openclaw dashboard"
 echo "  4) In Chat, use the agent picker if you still see only the default agent (main)."

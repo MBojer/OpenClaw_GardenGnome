@@ -7,7 +7,7 @@ cd "$ROOT"
 echo "Running scaffold verification..."
 
 missing=0
-for required in "README.md" "install.sh" ".env.example" "install/setup_env.sh" "install/setup_cron.py"; do
+for required in "README.md" "install.sh" ".env.example" "install/setup_env.sh" "install/setup_db.sh" "install/merge_env_key.py" "install/setup_cron.py" "db/postgres/001_schema_placeholder.sql"; do
   if [[ ! -f "$required" ]]; then
     echo "ERROR: Missing required file: $required"
     missing=1
