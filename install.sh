@@ -194,6 +194,27 @@ agent_already_registered() {
   ' >/dev/null 2>&1
 }
 
+gateway_rpc_healthy() {
+  openclaw gateway health >/dev/null 2>&1
+}
+
+ensure_gateway_running() {
+  # Prefer service-managed gateway so agent state is visible in dashboard/web UI.
+  if gateway_rpc_healthy; then
+    openclaw gateway restart >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  if openclaw gateway status >/dev/null 2>&1; then
+    openclaw gateway start >/dev/null 2>&1 || true
+  else
+    openclaw gateway install >/dev/null 2>&1 || true
+    openclaw gateway start >/dev/null 2>&1 || true
+  fi
+
+  gateway_rpc_healthy
+}
+
 step "GardenGnome installer — prerequisites"
 require_cmd bash
 ensure_prerequisites
@@ -241,6 +262,7 @@ step "2/6 Database migration placeholder"
 echo "Scaffold phase: no database migrations to run yet."
 
 step "3/6 Register OpenClaw agent"
+agent_was_added=0
 if agent_already_registered; then
   echo "Agent '$AGENT_NAME' already registered; skipping."
 else
@@ -250,18 +272,33 @@ else
     --non-interactive \
     --json
   echo "Agent '$AGENT_NAME' registered."
+  agent_was_added=1
 fi
 
-step "4/6 Setup cron scaffolding"
+step "4/7 Ensure OpenClaw gateway is running"
+if ensure_gateway_running; then
+  if [[ "$agent_was_added" -eq 1 ]]; then
+    echo "Gateway is running and reloaded for new agent visibility."
+  else
+    echo "Gateway is running."
+  fi
+else
+  echo "WARN: Could not verify a running OpenClaw gateway."
+  echo "      Run: openclaw gateway install && openclaw gateway start"
+  echo "      Then check: openclaw gateway status"
+fi
+
+step "5/7 Setup cron scaffolding"
 python3 "$ROOT/install/setup_cron.py"
 
-step "5/6 Verify installation"
+step "6/7 Verify installation"
 bash "$ROOT/install/verify.sh" "$ROOT"
 
-step "6/6 Done"
+step "7/7 Done"
 echo ""
 echo "GardenGnome installation complete."
 echo "Next steps:"
 echo "  1) Edit .env values in $ROOT"
 echo "  2) Run: openclaw health"
-echo "  3) Update with: cd $ROOT && git pull --ff-only  (or rerun this installer)"
+echo "  3) Open dashboard with: openclaw dashboard"
+echo "  4) Update with: cd $ROOT && git pull --ff-only  (or rerun this installer)"

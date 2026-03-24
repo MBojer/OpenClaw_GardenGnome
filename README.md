@@ -12,6 +12,7 @@ This repository is currently **scaffold-only**. Installer, structure, and docs a
              -> git clone or pull into ~/.openclaw/workspace-gardengnome (default)
              -> .env bootstrap
              -> agent registration (jq-based idempotency)
+             -> gateway start/restart so the agent is visible in Web UI
              -> cron scaffold step
              -> verification
 
@@ -106,8 +107,9 @@ Running `./install.sh` from a checkout still **clones or pulls into `GARDENGNOME
 3. Creates **`.env`** from **`.env.example`** if missing (existing **`.env`** is kept).
 4. Runs scaffold **database** placeholder step.
 5. Registers the **`AGENT_NAME`** agent with **`openclaw agents add --workspace "$GARDENGNOME_ROOT"`**, skipping registration if **`openclaw agents list --json`** already contains that name (**`jq`**, not `grep`).
-6. Runs the **cron** scaffold helper (`install/setup_cron.py`).
-7. Runs **`install/verify.sh`**.
+6. Ensures the **OpenClaw gateway service** is running (installs/starts if needed, restarts when already running) so agent changes are reflected in the dashboard/Web UI.
+7. Runs the **cron** scaffold helper (`install/setup_cron.py`).
+8. Runs **`install/verify.sh`**.
 
 Re-running is **idempotent**: safe to run again; `.env` is preserved; agent add is skipped when already registered.
 
@@ -123,6 +125,7 @@ Local secrets and ignored files (e.g. **`.env`**) should stay out of git; see **
 ```bash
 openclaw health
 openclaw agents list
+openclaw dashboard
 ```
 
 Then implement features in `scripts/`, `skills/`, and `db/`.
