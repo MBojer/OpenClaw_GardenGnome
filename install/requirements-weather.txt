@@ -1,0 +1,2 @@
+# Optional: weather_alerts.py (scripts/weather_alerts.py)
+psycopg[binary]>=3.1

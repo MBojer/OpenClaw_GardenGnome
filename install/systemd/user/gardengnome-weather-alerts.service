@@ -1,0 +1,11 @@
+[Unit]
+Description=GardenGnome weather alerts evaluation
+
+[Service]
+Type=oneshot
+WorkingDirectory=__GARDENGNOME_ROOT__
+EnvironmentFile=-__GARDENGNOME_ROOT__/config/garden.env
+ExecStart=__GARDENGNOME_ROOT__/scripts/weather_alerts.sh
+
+[Install]
+WantedBy=default.target

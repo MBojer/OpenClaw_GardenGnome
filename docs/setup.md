@@ -24,6 +24,14 @@
 4. Optionally: **`python3 scripts/constrained_llm_pipeline.py seed-examples`**, then **`warmup-semantic-cache`** / **`warmup-rag-chunk`** to embed and index content.
 5. **`python3 scripts/constrained_llm_pipeline.py pipeline --message "your test"`** prints the routing/cache/RAG/context decision JSON for integration testing.
 
+## Weather stack
+
+1. Apply **`db/postgres/004_garden_weather.sql`** via **`GARDENGNOME_DB_APPLY_SCHEMA=1`** and **`install/setup_db.sh`**.
+2. **`cp config/garden.env.template config/garden.env`** and set **`GARDEN_DB_URL`**, coordinates, thresholds; **`pip install -r install/requirements-weather.txt`**.
+3. **`bash scripts/weather_current.sh`** — first fill of **`garden.weather_*`**; then **`python3 scripts/weather_historical_backfill.py`** optional.
+4. User timers: **`bash scripts/setup_cron.sh`** (or **`GARDENGNOME_SETUP_SYSTEMD_TIMERS=1`** on install). For timers to run when logged out, enable **linger**: `loginctl enable-linger "$USER"`.
+5. **`bash scripts/daily_briefing.sh`** needs Ollama at **`OLLAMA_HOST`** if you want prose (otherwise JSON-only fallback).
+
 ## Troubleshooting
 
 - `openclaw: command not found`: install OpenClaw CLI and rerun.

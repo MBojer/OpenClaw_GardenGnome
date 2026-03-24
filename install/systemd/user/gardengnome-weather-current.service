@@ -1,0 +1,11 @@
+[Unit]
+Description=GardenGnome Open-Meteo current + forecast refresh
+
+[Service]
+Type=oneshot
+WorkingDirectory=__GARDENGNOME_ROOT__
+EnvironmentFile=-__GARDENGNOME_ROOT__/config/garden.env
+ExecStart=__GARDENGNOME_ROOT__/scripts/weather_current.sh
+
+[Install]
+WantedBy=default.target

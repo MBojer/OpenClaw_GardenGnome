@@ -1,0 +1,11 @@
+[Unit]
+Description=GardenGnome weather archive (weather_log gap fill)
+
+[Service]
+Type=oneshot
+WorkingDirectory=__GARDENGNOME_ROOT__
+EnvironmentFile=-__GARDENGNOME_ROOT__/config/garden.env
+ExecStart=__GARDENGNOME_ROOT__/scripts/weather_archive.sh
+
+[Install]
+WantedBy=default.target

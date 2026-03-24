@@ -1,4 +1,7 @@
 .env
+config/garden.env
+logs/
+briefings/
 *.log
 __pycache__/
 *.pyc

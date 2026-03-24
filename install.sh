@@ -514,6 +514,11 @@ fi
 
 step "6/8 Setup cron scaffolding"
 python3 "$ROOT/install/setup_cron.py"
+if [[ "${GARDENGNOME_SETUP_SYSTEMD_TIMERS:-0}" == "1" ]]; then
+  if [[ -x "$ROOT/scripts/setup_cron.sh" ]]; then
+    bash "$ROOT/scripts/setup_cron.sh" "$ROOT" || echo "WARN: systemd timer setup failed (optional)."
+  fi
+fi
 
 step "7/8 Verify installation"
 bash "$ROOT/install/verify.sh" "$ROOT"
@@ -523,6 +528,7 @@ echo ""
 echo "GardenGnome installation complete."
 echo "Next steps:"
 echo "  1) Edit .env in $ROOT (GARDENGNOME_DATABASE_URL, GARDENGNOME_DB_APPLY_SCHEMA=1 for core schema; GARDENGNOME_DB_APPLY_SEEDS=1 only if you want seeds/*.sql)"
+echo "     Weather: copy config/garden.env.template to config/garden.env; pip install -r install/requirements-weather.txt"
 echo "  2) Run: openclaw health"
 echo "  3) Open dashboard with: openclaw dashboard"
 echo "  4) In Chat, use the agent picker if you still see only the default agent (main)."

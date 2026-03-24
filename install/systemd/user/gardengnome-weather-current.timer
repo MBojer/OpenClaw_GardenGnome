@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh GardenGnome weather every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00:00
+OnCalendar=*-*-* *:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

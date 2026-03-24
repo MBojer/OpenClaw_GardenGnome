@@ -104,6 +104,7 @@ Other useful environment variables:
 | `GARDENGNOME_DB_APPLY_SCHEMA` | `0` | Set `1` to apply core **`db/postgres/*.sql`** migrations after connectivity (needs **`psql`**); skips already-recorded ids and seed/example filenames |
 | `GARDENGNOME_DB_APPLY_SEEDS` | `0` | Set `1` to also apply **`db/postgres/seeds/*.sql`** (optional example data; default off) |
 | `GARDENGNOME_DB_SKIP_INIT` | `0` | Set `1` to skip DB prompt, connectivity test, and schema apply |
+| `GARDENGNOME_SETUP_SYSTEMD_TIMERS` | `0` | Set `1` so the installer runs **`scripts/setup_cron.sh`** (user systemd weather timers on Linux) |
 
 ## Manual install (from a git checkout)
 
@@ -164,7 +165,19 @@ Helper script (after `pip install -r install/requirements-constrained-llm.txt` a
 
 Configure **`OLLAMA_HOST`**, **`OLLAMA_EMBED_MODEL`**, **`QDRANT_URL`**, collection names, and **`SEMANTIC_CACHE_MIN_SCORE`** / **`RAG_MIN_SCORE`** in **`.env`** (see **`.env.example`**). Wire the script or the same logic into OpenClaw via skills, cron, or a preprocessor so cheap paths run before the primary model.
 
-Then implement features in `scripts/`, `skills/`, and `db/`.
+### Weather (Open-Meteo, no API key)
+
+Migration **`db/postgres/004_garden_weather.sql`** creates schema **`garden`** with current conditions, hourly/daily forecasts, **`weather_log`**, alerts, and summary views.
+
+1. Apply DB migrations (include **`004`**).
+2. Copy **`config/garden.env.template`** → **`config/garden.env`**; set **`GARDEN_DB_URL`** (same as **`GARDENGNOME_DATABASE_URL`**), **`GARDEN_LAT`**, **`GARDEN_LON`**, optional **`OPEN_METEO_URL`** / **`OPEN_METEO_ARCHIVE_URL`**.
+3. **`pip install -r install/requirements-weather.txt`** (for **`scripts/weather_alerts.py`**).
+4. Run once: **`bash scripts/weather_current.sh`** to populate forecasts; optional **`python3 scripts/weather_historical_backfill.py`** for history (archive lag ~5 days).
+5. Linux with systemd: set **`GARDENGNOME_SETUP_SYSTEMD_TIMERS=1`** during install, or run **`bash scripts/setup_cron.sh "$GARDENGNOME_ROOT"`** — installs user timers for **`weather_current.sh`** (:00/:30), **`weather_archive.sh`** (05:00), **`weather_alerts.sh`** (06:00).
+6. **`bash scripts/daily_briefing.sh`** — dumps structured weather JSON from the DB and calls local Ollama (**`OLLAMA_HOST`**, **`BRIEFING_MODEL`** in **`config/garden.env`**) to write **`briefings/daily.md`** (gitignored).
+7. Static site context: **`ref/CLIMATE.md`** (fill in manually).
+
+The primary cloud LLM should read **`briefings/daily.md`** or query **`garden.*`** — not call weather HTTP APIs.
 
 ## Reference
 
