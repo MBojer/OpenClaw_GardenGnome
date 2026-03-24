@@ -16,6 +16,14 @@
 - Cron step is scaffold-only (no real schedules yet).
 - Verification can be run directly with `bash install/verify.sh`.
 
+## Constrained-LLM database (optional)
+
+1. Set **`GARDENGNOME_DATABASE_URL`** and **`GARDENGNOME_DB_APPLY_SCHEMA=1`**, then run **`bash install/setup_db.sh "$GARDENGNOME_ROOT"`** (or the installer). Core **`db/postgres/*.sql`** runs in sort order, **omitting** migrations already in **`schema_migrations`**, and **never** applies **`db/postgres/seeds/*.sql`** unless **`GARDENGNOME_DB_APPLY_SEEDS=1`**. For optional starter rows: **`psql … -f db/postgres/seeds/003_example_openclaw_context.sql`** or the **`seed-examples`** Python command.
+2. For semantic cache / RAG, run **Qdrant** and **Ollama** with an embedding-capable model; copy **`OLLAMA_*`**, **`QDRANT_*`**, and score thresholds from **`.env.example`** into **`.env`**.
+3. Install Python deps: **`pip install -r install/requirements-constrained-llm.txt`**.
+4. Optionally: **`python3 scripts/constrained_llm_pipeline.py seed-examples`**, then **`warmup-semantic-cache`** / **`warmup-rag-chunk`** to embed and index content.
+5. **`python3 scripts/constrained_llm_pipeline.py pipeline --message "your test"`** prints the routing/cache/RAG/context decision JSON for integration testing.
+
 ## Troubleshooting
 
 - `openclaw: command not found`: install OpenClaw CLI and rerun.

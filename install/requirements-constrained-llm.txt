@@ -1,0 +1,2 @@
+# Optional: constrained-LLM DB helpers (scripts/constrained_llm_pipeline.py)
+psycopg[binary]>=3.1
