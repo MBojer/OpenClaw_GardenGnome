@@ -44,10 +44,14 @@ Use when the user says **`/gnome`**, or whenever **location** is not done. While
 
 ### Flow (text: city / address / place)
 
-1. Run **`python3 scripts/geocode_garden.py search "QUERY"`** (adjust **`--count`** if needed). Exit code **1** means no matches — ask for a clearer query (country, spelling).
+1. Run **`python3 scripts/geocode_garden.py search …`** (adjust **`--count`** if needed). Exit code **1** means no matches — ask for a clearer query (country, spelling).
+   - **Multi-word places (no quotes needed):** `python3 scripts/geocode_garden.py search Aars Denmark` — the script joins all words after `search`. **Do not** run `search Aars` as the only token if the user said “Aars Denmark”; passing two words avoids old “unrecognized arguments” failures.
+   - **Commas or long addresses:** `python3 scripts/geocode_garden.py search --query 'Skivum, 9240 Nibe, Denmark'` (or **`-q`**). Same for **`apply-search`** — use **`--query '…'`** so the shell does not split on commas.
+   - **Denmark / Danish names:** if results are empty, retry with **`--language da`**. The script also tries shorter variants automatically (e.g. drops “Denmark” or a leading postcode) and prints a stderr line when it used a shorter form — **not** a failure; continue with the numbered list.
+   - If you see **`unrecognized arguments`** from an older mental model: use **several words after `search`** or **`--query 'full string'`** — never rely on a single positional that omits the rest of the address.
 2. If **multiple** lines are printed, show them to the user and ask which **1-based index** is correct (or a refined query). **Single** result: still show **name, lat, lon, timezone** and ask for a clear **yes** before applying.
 3. Optional double-check before apply: **`python3 scripts/geocode_garden.py smoke LAT LON`** (bounds + Open-Meteo forecast sanity check).
-4. After confirmation, run **`python3 scripts/geocode_garden.py apply-search "SAME_QUERY" --index N`** using the **same** query and **`--count`** as in step 1 so the index matches the list the user saw.
+4. After confirmation, run **`python3 scripts/geocode_garden.py apply-search … --index N`** with the **same** place text and **`--count`** as in step 1 (e.g. `apply-search Aars Denmark --index 1` or `apply-search --query '…' --index 1`) so the index matches the list the user saw.
 5. Set **`onboarding.locationLabel`** to the human-readable place (e.g. `Oslo, Oslo County, Norway`) and **`onboarding.locationDoneAt`** to now.
 
 ### Flow (coordinates)
@@ -61,9 +65,9 @@ Use when the user says **`/gnome`**, or whenever **location** is not done. While
 
 | Step | Command |
 |------|---------|
-| List matches | `python3 scripts/geocode_garden.py search "City or address"` |
+| List matches | `python3 scripts/geocode_garden.py search Town Country` or `search --query 'Full, Address'` |
 | Validate coords | `python3 scripts/geocode_garden.py smoke LAT LON` |
-| Apply text match | `python3 scripts/geocode_garden.py apply-search "QUERY" --index N` |
+| Apply text match | `python3 scripts/geocode_garden.py apply-search Town Country --index N` or `apply-search -q '…' --index N` |
 | Apply coords | `python3 scripts/geocode_garden.py apply-coords LAT LON` (optional `--timezone` to override Open-Meteo) |
 | Fill **`weather_log`** | `python3 scripts/weather_historical_backfill.py` |
 

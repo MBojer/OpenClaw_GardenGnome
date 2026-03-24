@@ -3,10 +3,13 @@
 Geocode garden location via Open-Meteo, validate with a minimal forecast call, write config/garden.env.
 
 Subcommands:
-  search QUERY           — list numbered candidates (exit 1 if none)
+  search [WORDS ...] [--query STRING]  — list candidates (use --query for commas / one shell arg)
   smoke LAT LON          — bounds check + forecast API smoke test
-  apply-search QUERY --index N   — pick candidate, smoke, then set GARDEN_LAT/LON/TIMEZONE
+  apply-search [WORDS ...] [--query STRING] --index N
   apply-coords LAT LON [--timezone TZ] — smoke, then set the three keys (timezone from Open-Meteo if omitted)
+
+Shell tip: `search Aars Denmark` works (multiple words). For `skivum, 9240 nibe` use:
+  search --query 'skivum, 9240 nibe, denmark'
 """
 from __future__ import annotations
 
@@ -61,8 +64,26 @@ def workspace_root() -> Path:
 
 def fetch_json(url: str) -> dict:
     req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            raw = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        u = getattr(e, "url", url)
+        raise SystemExit(f"HTTP {e.code} from {u}: {e.reason}") from e
+    except urllib.error.URLError as e:
+        raise SystemExit(f"Network error ({url}): {e.reason}") from e
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"Invalid JSON from API (truncated response?): {e}") from e
+
+
+def resolve_place_query(cli_query: str | None, query_parts: list[str]) -> str:
+    """Prefer --query string; else join positional words (so `search Aars Denmark` works)."""
+    s = (cli_query or "").strip()
+    if s:
+        return s
+    return " ".join(query_parts).strip()
 
 
 def geocode_search(
@@ -83,6 +104,73 @@ def geocode_search(
     url = f"{base.rstrip('/')}/v1/search?{q}"
     data = fetch_json(url)
     return list(data.get("results") or [])
+
+
+def _place_tokens(query: str) -> list[str]:
+    return [t for t in re.split(r"[\s,]+", query.strip()) if t]
+
+
+def _variants_for_tokens(tokens: list[str]) -> list[str]:
+    """Longest-first right-chop; skip a lone numeric token when other tokens exist (avoid ZIP-only false hits)."""
+    out: list[str] = []
+    for k in range(len(tokens), 0, -1):
+        if k == 1 and len(tokens) > 1 and tokens[0].isdigit():
+            continue
+        s = " ".join(tokens[:k])
+        if s and s not in out:
+            out.append(s)
+    return out
+
+
+def _search_query_variants(query: str) -> list[str]:
+    """Try full string, shorter tails, then same after stripping leading postcodes (e.g. 9240 Nibe -> Nibe)."""
+    tokens = _place_tokens(query)
+    if not tokens:
+        return []
+    seen: set[str] = set()
+    variants: list[str] = []
+
+    def extend(toks: list[str]) -> None:
+        for s in _variants_for_tokens(toks):
+            if s not in seen:
+                seen.add(s)
+                variants.append(s)
+
+    extend(tokens)
+    rest = tokens[:]
+    while rest and rest[0].isdigit():
+        rest = rest[1:]
+    if rest and rest != tokens:
+        extend(rest)
+    return variants
+
+
+def geocode_search_with_fallbacks(
+    query: str,
+    *,
+    count: int,
+    language: str,
+) -> tuple[list[dict], str]:
+    """
+    Run geocode; if empty, retry shorter variants and optionally language=da for Denmark-related text.
+    Returns (results, effective_query_string_used).
+    """
+    variants = _search_query_variants(query)
+    langs_to_try = [language]
+    if language != "da" and re.search(r"denmark|danmark|\bdk\b", query, re.I):
+        langs_to_try.append("da")
+
+    for lang in langs_to_try:
+        for cand in variants:
+            results = geocode_search(cand, count=count, language=lang)
+            if results:
+                if cand != query.strip() or lang != language:
+                    print(
+                        f"(geocode: using {cand!r}, language={lang} — full query returned no hits)",
+                        file=sys.stderr,
+                    )
+                return results, cand
+    return [], query.strip()
 
 
 def candidate_label(r: dict) -> str:
@@ -173,9 +261,23 @@ def apply_coords(
 
 
 def cmd_search(args: argparse.Namespace) -> int:
-    results = geocode_search(args.query, count=args.count, language=args.language)
+    q = resolve_place_query(args.query, args.query_parts)
+    if not q:
+        print(
+            "geocode_garden search: pass a place name, e.g.\n"
+            "  python3 scripts/geocode_garden.py search Aars Denmark\n"
+            "  python3 scripts/geocode_garden.py search --query 'Skivum, 9240 Nibe, Denmark'\n"
+            "Tip: try a shorter query (city + country) or --language da for Danish names.",
+            file=sys.stderr,
+        )
+        return 2
+    results, _used = geocode_search_with_fallbacks(q, count=args.count, language=args.language)
     if not results:
-        print("No geocoding results — refine the query (add country, fix spelling).", file=sys.stderr)
+        print(
+            f"No geocoding results for {q!r} (tried shorter variants) — "
+            "try --query 'City, Country', fewer words, or --language da.",
+            file=sys.stderr,
+        )
         return 1
     print_candidates(results, as_json=args.json)
     return 0
@@ -202,9 +304,16 @@ def cmd_apply_search(args: argparse.Namespace) -> int:
         print(f"Missing {env_path}", file=sys.stderr)
         return 1
 
-    results = geocode_search(args.query, count=args.count, language=args.language)
+    q = resolve_place_query(args.query, args.query_parts)
+    if not q:
+        print(
+            "apply-search: pass the same place as search (words or --query '...') plus --index N.",
+            file=sys.stderr,
+        )
+        return 2
+    results, _used = geocode_search_with_fallbacks(q, count=args.count, language=args.language)
     if not results:
-        print("No geocoding results.", file=sys.stderr)
+        print(f"No geocoding results for {q!r} (tried shorter variants).", file=sys.stderr)
         return 1
     idx = args.index
     if idx < 1 or idx > len(results):
@@ -238,13 +347,36 @@ def cmd_apply_coords(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Garden location geocode + validate + apply")
+    parser = argparse.ArgumentParser(
+        description="Garden location geocode + validate + apply",
+        epilog="Examples:\n"
+        "  %(prog)s search Aars Denmark\n"
+        "  %(prog)s search --query '9240 Nibe, Denmark' --language da\n"
+        "  %(prog)s apply-search Aars Denmark --index 1",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_search = sub.add_parser("search", help="list geocoding candidates")
-    p_search.add_argument("query", help="city, address, or place name")
+    p_search = sub.add_parser(
+        "search",
+        help="list geocoding candidates",
+        epilog="Use several words without quotes (search Town Country) or --query 'full, address' for commas.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_search.add_argument(
+        "--query",
+        "-q",
+        default=None,
+        metavar="STRING",
+        help="full search string (recommended when the address has commas)",
+    )
+    p_search.add_argument(
+        "query_parts",
+        nargs="*",
+        help="place words (e.g. Aars Denmark); joined with spaces",
+    )
     p_search.add_argument("--count", type=int, default=8, help="max results (default 8)")
-    p_search.add_argument("--language", default="en")
+    p_search.add_argument("--language", default="en", help="ISO language for geocoder (try da for Denmark)")
     p_search.add_argument("--json", action="store_true", help="machine-readable output")
     p_search.set_defaults(func=cmd_search)
 
@@ -254,7 +386,18 @@ def main() -> int:
     p_smoke.set_defaults(func=cmd_smoke)
 
     p_as = sub.add_parser("apply-search", help="apply geocoded candidate by 1-based index")
-    p_as.add_argument("query")
+    p_as.add_argument(
+        "--query",
+        "-q",
+        default=None,
+        metavar="STRING",
+        help="full search string (must match what you used for search)",
+    )
+    p_as.add_argument(
+        "query_parts",
+        nargs="*",
+        help="same place words as search (e.g. Aars Denmark)",
+    )
     p_as.add_argument("--index", type=int, required=True)
     p_as.add_argument("--count", type=int, default=10, help="fetch up to N matches before --index")
     p_as.add_argument("--language", default="en")
