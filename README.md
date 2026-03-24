@@ -11,6 +11,7 @@ This repository is currently **scaffold-only**. Installer, structure, and docs a
   install.sh -> prerequisite checks (+ optional auto-install prompts)
              -> git clone or pull into ~/.openclaw/workspace-gardengnome (default)
              -> .env bootstrap + optional GARDENGNOME_DATABASE_URL (prompt / export)
+             -> ensure psql on PATH when URL set (hints + optional auto-install)
              -> PostgreSQL connectivity test + optional db/postgres/*.sql
              -> agent registration (jq-based idempotency)
              -> gateway start/restart so config reloads in the Control UI
@@ -36,7 +37,7 @@ The installer expects these commands on your `PATH`:
 | **node** | OpenClaw / tooling expectations |
 | **crontab** | User crontab CLI (Debian/Ubuntu: `cron` package; RHEL/Fedora: `cronie`; macOS includes it) |
 | **bash** | Installer shell |
-| **psql** (optional) | PostgreSQL client; required when **`GARDENGNOME_DATABASE_URL`** is set (connectivity test), and for applying **`db/postgres/*.sql`** when **`GARDENGNOME_DB_APPLY_SCHEMA=1`** |
+| **psql** | **Required when `GARDENGNOME_DATABASE_URL` is set** (connectivity test + applying **`db/postgres/*.sql`** when **`GARDENGNOME_DB_APPLY_SCHEMA=1`**). Not needed if the URL is empty or **`GARDENGNOME_DB_SKIP_INIT=1`**. |
 
 Recommended: **Node.js 22+**, **Python 3.10+** (align with your OpenClaw stack). For applied schema: **PostgreSQL 13+** (uses `gen_random_uuid()`).
 
@@ -49,6 +50,7 @@ If you run the installer from a **terminal** (with a usable `/dev/tty`), it will
 3. Optionally run an **automatic** install for **jq, git, curl, python3, node, and cron/crontab** (e.g. `cron` / `cronie`; not `openclaw`) if you answer **y** to the prompt.
 4. For **openclaw** only: it will ask you to install it yourself, then **press Enter** to continue once it is on `PATH`.
 5. Optionally asks for **`GARDENGNOME_DATABASE_URL`** (PostgreSQL URL) so the installer can verify connectivity — skip with Enter, or set **`GARDENGNOME_DB_SKIP_INIT=1`** in `.env` to suppress the prompt.
+6. If a database URL is configured, offers an **optional automatic install** for the **PostgreSQL client (`psql`)** (same package managers as above) when **`psql`** is missing.
 
 `curl … | bash` still works in a real terminal because prompts are read from **`/dev/tty`**, not from the script on stdin.
 

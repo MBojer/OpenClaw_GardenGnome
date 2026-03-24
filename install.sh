@@ -59,19 +59,23 @@ print_manual_install_hints() {
   case "$pm" in
     brew)
       echo "  brew install jq git curl python node"
+      echo "  brew install libpq && brew link --force libpq   # psql; only if you use GARDENGNOME_DATABASE_URL"
       echo "  # crontab: included with macOS (install cron/cronie on Linux if missing)."
       echo "  # OpenClaw CLI: install per your OpenClaw / OpenClaw docs (not on default Homebrew)."
       ;;
     apt)
       echo "  sudo apt-get update && sudo apt-get install -y jq git curl python3 nodejs npm cron"
+      echo "  sudo apt-get install -y postgresql-client   # only if you use GARDENGNOME_DATABASE_URL"
       echo "  # OpenClaw CLI: install from project documentation."
       ;;
     dnf | yum)
       echo "  sudo $pm install -y jq git curl python3 nodejs cronie"
+      echo "  sudo $pm install -y postgresql   # only if you use GARDENGNOME_DATABASE_URL"
       echo "  # OpenClaw CLI: install from project documentation."
       ;;
     *)
       echo "  Install: jq, git, curl, Python 3, Node.js, crontab (e.g. apt: cron, dnf: cronie), and the OpenClaw CLI, then rerun."
+      echo "  If using a Postgres URL: also install psql (e.g. apt: postgresql-client; brew: libpq)."
       ;;
   esac
   echo ""
@@ -299,6 +303,133 @@ merge_or_prompt_database_url() {
   echo "Saved GARDENGNOME_DATABASE_URL to .env"
 }
 
+normalize_env_database_url() {
+  local raw="${1-}"
+  raw="${raw#\"}"
+  raw="${raw%\"}"
+  raw="${raw#\'}"
+  raw="${raw%\'}"
+  printf '%s' "$raw"
+}
+
+prepend_libpq_brew_paths() {
+  local base
+  for base in /opt/homebrew/opt/libpq/bin /usr/local/opt/libpq/bin; do
+    if [[ -x "$base/psql" ]]; then
+      export PATH="$base:$PATH"
+      return 0
+    fi
+  done
+  return 0
+}
+
+print_psql_install_hints() {
+  echo ""
+  echo "PostgreSQL client (psql) install hints:"
+  local pm
+  pm="$(detect_pkg_installer)"
+  case "$pm" in
+    brew)
+      echo "  brew install libpq"
+      echo "  brew link --force libpq"
+      echo "  # or: export PATH=\"/opt/homebrew/opt/libpq/bin:\$PATH\"  (Apple Silicon; use /usr/local on Intel)"
+      ;;
+    apt)
+      echo "  sudo apt-get update && sudo apt-get install -y postgresql-client"
+      ;;
+    dnf)
+      echo "  sudo dnf install -y postgresql"
+      ;;
+    yum)
+      echo "  sudo yum install -y postgresql"
+      ;;
+    *)
+      echo "  Install your OS \"postgresql-client\" / \"postgresql\" package so psql is on PATH."
+      ;;
+  esac
+  echo ""
+}
+
+run_auto_psql_install() {
+  local pm
+  pm="$(detect_pkg_installer)"
+  case "$pm" in
+    brew)
+      brew install libpq
+      brew link --force libpq 2>/dev/null || true
+      prepend_libpq_brew_paths
+      ;;
+    apt)
+      sudo apt-get update -qq
+      sudo apt-get install -y postgresql-client
+      ;;
+    dnf)
+      sudo dnf install -y postgresql
+      ;;
+    yum)
+      sudo yum install -y postgresql
+      ;;
+    *)
+      echo "ERROR: No supported package manager (brew, apt-get, dnf, or yum) found."
+      return 1
+      ;;
+  esac
+}
+
+ensure_psql_when_database_url_set() {
+  local root="$1"
+  local envf="$root/.env"
+  [[ -f "$envf" ]] || return 0
+
+  # shellcheck disable=SC1090
+  set -a
+  source "$envf"
+  set +a
+
+  if [[ "${GARDENGNOME_DB_SKIP_INIT:-0}" == "1" ]] \
+    || grep -q '^GARDENGNOME_DB_SKIP_INIT=1' "$envf" 2>/dev/null; then
+    return 0
+  fi
+
+  local url
+  url="$(normalize_env_database_url "${GARDENGNOME_DATABASE_URL-}")"
+  [[ -n "$url" ]] || return 0
+
+  prepend_libpq_brew_paths
+  if command -v psql >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "PostgreSQL client (psql) is required when GARDENGNOME_DATABASE_URL is set."
+
+  if is_interactive_install; then
+    local ans
+    print_psql_install_hints
+    read_tty "Try automatic install for the PostgreSQL client (psql)? [y/N] " ans
+    case "${ans}" in
+      y | Y | yes | YES | Yes)
+        if run_auto_psql_install; then
+          prepend_libpq_brew_paths
+        else
+          echo "Automatic psql install failed or is unavailable."
+        fi
+        ;;
+    esac
+  else
+    print_psql_install_hints
+    echo "Non-interactive install: install psql, unset/clear the database URL, or set GARDENGNOME_DB_SKIP_INIT=1."
+    exit 1
+  fi
+
+  prepend_libpq_brew_paths
+  if ! command -v psql >/dev/null 2>&1; then
+    echo "ERROR: psql still not found on PATH."
+    print_psql_install_hints
+    exit 1
+  fi
+  echo "psql is available."
+}
+
 step "GardenGnome installer — prerequisites"
 require_cmd bash
 ensure_prerequisites
@@ -342,6 +473,7 @@ echo "Repository root: $ROOT"
 step "1/8 Setup environment"
 bash "$ROOT/install/setup_env.sh" "$ROOT"
 merge_or_prompt_database_url "$ROOT" "$ROOT/.env"
+ensure_psql_when_database_url_set "$ROOT"
 
 step "2/8 Database (connectivity + optional schema)"
 bash "$ROOT/install/setup_db.sh" "$ROOT"

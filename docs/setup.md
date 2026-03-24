@@ -11,7 +11,7 @@
 
 - `.env` is not overwritten if it already exists.
 - New keys in `.env.example` (e.g. **`GARDENGNOME_DATABASE_URL`**) must be merged into an existing **`.env`** by hand.
-- When **`GARDENGNOME_DATABASE_URL`** is set, **`install/setup_db.sh`** runs **`psql`** `SELECT 1` (install client tools first). Schema apply runs only when **`GARDENGNOME_DB_APPLY_SCHEMA=1`**. **`GARDENGNOME_DB_SKIP_INIT=1`** skips prompts, connectivity test, and schema.
+- When **`GARDENGNOME_DATABASE_URL`** is set, the installer **requires `psql`** on `PATH` (or offers to install **`postgresql-client`** / **`libpq`** in interactive mode). Then **`install/setup_db.sh`** runs **`psql`** `SELECT 1`. Schema apply runs only when **`GARDENGNOME_DB_APPLY_SCHEMA=1`**. **`GARDENGNOME_DB_SKIP_INIT=1`** skips prompts, the **`psql`** check, connectivity test, and schema.
 - Existing agent registration is detected and skipped.
 - Cron step is scaffold-only (no real schedules yet).
 - Verification can be run directly with `bash install/verify.sh`.
