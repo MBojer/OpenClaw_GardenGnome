@@ -27,10 +27,12 @@
 ## Weather stack
 
 1. Apply **`db/postgres/004_garden_weather.sql`** via **`GARDENGNOME_DB_APPLY_SCHEMA=1`** and **`install/setup_db.sh`**.
-2. **`cp config/garden.env.template config/garden.env`** and set **`GARDEN_DB_URL`**, coordinates, thresholds; **`pip install -r install/requirements-weather.txt`**.
+2. **`install.sh`** creates **`config/garden.env`** from the template when missing and syncs **`GARDEN_DB_URL`** from **`GARDENGNOME_DATABASE_URL`** when possible; edit coordinates and thresholds there. **`pip install`** for weather/constrained-LLM requirements runs during install unless skipped.
 3. **`bash scripts/weather_current.sh`** — first fill of **`garden.weather_*`**; then **`python3 scripts/weather_historical_backfill.py`** optional.
 4. User timers: **`bash scripts/setup_cron.sh`** (or **`GARDENGNOME_SETUP_SYSTEMD_TIMERS=1`** on install). For timers to run when logged out, enable **linger**: `loginctl enable-linger "$USER"`.
 5. **`bash scripts/daily_briefing.sh`** needs Ollama at **`OLLAMA_HOST`** if you want prose (otherwise JSON-only fallback).
+
+**Python packages:** **`./install.sh`** installs **`install/requirements-weather.txt`** and **`install/requirements-constrained-llm.txt`** after repo bootstrap (requires **`python3 -m pip`**). Skip with **`GARDENGNOME_SKIP_PIP_REQUIREMENTS=1`**.
 
 ## Troubleshooting
 

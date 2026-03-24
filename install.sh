@@ -58,23 +58,24 @@ print_manual_install_hints() {
   pm="$(detect_pkg_installer)"
   case "$pm" in
     brew)
-      echo "  brew install jq git curl python node"
+      echo "  brew install jq git curl python node   # Homebrew python includes pip (python3 -m pip)"
       echo "  brew install libpq && brew link --force libpq   # psql; only if you use GARDENGNOME_DATABASE_URL"
       echo "  # crontab: included with macOS (install cron/cronie on Linux if missing)."
       echo "  # OpenClaw CLI: install per your OpenClaw / OpenClaw docs (not on default Homebrew)."
       ;;
     apt)
-      echo "  sudo apt-get update && sudo apt-get install -y jq git curl python3 nodejs npm cron"
+      echo "  sudo apt-get update && sudo apt-get install -y jq git curl python3 python3-pip nodejs npm cron"
       echo "  sudo apt-get install -y postgresql-client   # only if you use GARDENGNOME_DATABASE_URL"
       echo "  # OpenClaw CLI: install from project documentation."
       ;;
     dnf | yum)
-      echo "  sudo $pm install -y jq git curl python3 nodejs cronie"
+      echo "  sudo $pm install -y jq git curl python3 python3-pip nodejs cronie"
       echo "  sudo $pm install -y postgresql   # only if you use GARDENGNOME_DATABASE_URL"
       echo "  # OpenClaw CLI: install from project documentation."
       ;;
     *)
-      echo "  Install: jq, git, curl, Python 3, Node.js, crontab (e.g. apt: cron, dnf: cronie), and the OpenClaw CLI, then rerun."
+      echo "  Install: jq, git, curl, Python 3 + pip (e.g. apt: python3-pip; dnf: python3-pip), Node.js, crontab"
+      echo "  (e.g. apt: cron, dnf: cronie), and the OpenClaw CLI, then rerun."
       echo "  If using a Postgres URL: also install psql (e.g. apt: postgresql-client; brew: libpq)."
       ;;
   esac
@@ -90,13 +91,13 @@ run_auto_pkg_install() {
       ;;
     apt)
       sudo apt-get update -qq
-      sudo apt-get install -y jq git curl python3 nodejs npm cron
+      sudo apt-get install -y jq git curl python3 python3-pip nodejs npm cron
       ;;
     dnf)
-      sudo dnf install -y jq git curl python3 nodejs cronie
+      sudo dnf install -y jq git curl python3 python3-pip nodejs cronie
       ;;
     yum)
-      sudo yum install -y jq git curl python3 nodejs cronie
+      sudo yum install -y jq git curl python3 python3-pip nodejs cronie
       ;;
     *)
       echo "ERROR: No supported package manager (brew, apt-get, dnf, or yum) found."
@@ -430,6 +431,64 @@ ensure_psql_when_database_url_set() {
   echo "psql is available."
 }
 
+# Install bundled Python deps (weather alerts, constrained-LLM helpers). Best-effort; safe under set -e
+# because failures are inside if-tests or guarded with WARN.
+install_python_requirements() {
+  local root="$1"
+  if [[ "${GARDENGNOME_SKIP_PIP_REQUIREMENTS:-0}" == "1" ]]; then
+    echo "GARDENGNOME_SKIP_PIP_REQUIREMENTS=1 — skipping pip install."
+    return 0
+  fi
+  if ! python3 -m pip --version >/dev/null 2>&1; then
+    echo "WARN: python3 -m pip not available — install python3-pip (or pip) to use weather_alerts / psycopg helpers."
+    echo "      Example: sudo apt-get install -y python3-pip"
+    return 0
+  fi
+  local req failed=0
+  for req in "$root/install/requirements-weather.txt" "$root/install/requirements-constrained-llm.txt"; do
+    if [[ ! -f "$req" ]]; then
+      continue
+    fi
+    echo "pip install -r $(basename "$req") …"
+    if python3 -m pip install -r "$req"; then
+      :
+    elif python3 -m pip install --user -r "$req"; then
+      echo "(installed with --user; ensure ~/.local/bin is on PATH if needed)"
+    else
+      echo "WARN: pip install failed for $req — run manually: python3 -m pip install -r $req"
+      failed=1
+    fi
+  done
+  if [[ "$failed" -eq 1 ]]; then
+    echo "      On some distros use: python3 -m pip install --user -r <file>"
+    echo "      or externally managed env: python3 -m pip install --break-system-packages -r <file>"
+  fi
+}
+
+# Create config/garden.env from template when missing; set GARDEN_DB_URL from GARDENGNOME_DATABASE_URL when set.
+ensure_garden_env() {
+  local root="$1"
+  local tmpl="$root/config/garden.env.template"
+  local out="$root/config/garden.env"
+  mkdir -p "$root/config"
+  if [[ ! -f "$tmpl" ]]; then
+    return 0
+  fi
+  local db_url
+  db_url="$(normalize_env_database_url "${GARDENGNOME_DATABASE_URL-}")"
+  if [[ ! -f "$out" ]]; then
+    cp "$tmpl" "$out"
+    echo "Created config/garden.env from config/garden.env.template"
+    if [[ -n "$db_url" ]]; then
+      python3 "$root/install/merge_env_key.py" "$out" GARDEN_DB_URL "$db_url"
+      echo "Set GARDEN_DB_URL in config/garden.env from GARDENGNOME_DATABASE_URL"
+    fi
+  elif [[ -n "$db_url" ]] && grep -qE '^GARDEN_DB_URL=.*user:pass' "$out" 2>/dev/null; then
+    python3 "$root/install/merge_env_key.py" "$out" GARDEN_DB_URL "$db_url"
+    echo "Updated GARDEN_DB_URL in config/garden.env (replaced template placeholder with GARDENGNOME_DATABASE_URL)"
+  fi
+}
+
 step "GardenGnome installer — prerequisites"
 require_cmd bash
 ensure_prerequisites
@@ -474,6 +533,14 @@ step "1/8 Setup environment"
 bash "$ROOT/install/setup_env.sh" "$ROOT"
 merge_or_prompt_database_url "$ROOT" "$ROOT/.env"
 ensure_psql_when_database_url_set "$ROOT"
+# shellcheck disable=SC1090
+if [[ -f "$ROOT/.env" ]]; then
+  set -a
+  source "$ROOT/.env"
+  set +a
+fi
+ensure_garden_env "$ROOT"
+install_python_requirements "$ROOT"
 
 step "2/8 Database (connectivity + optional schema)"
 bash "$ROOT/install/setup_db.sh" "$ROOT"
@@ -528,7 +595,7 @@ echo ""
 echo "GardenGnome installation complete."
 echo "Next steps:"
 echo "  1) Edit .env in $ROOT (GARDENGNOME_DATABASE_URL, GARDENGNOME_DB_APPLY_SCHEMA=1 for core schema; GARDENGNOME_DB_APPLY_SEEDS=1 only if you want seeds/*.sql)"
-echo "     Weather: copy config/garden.env.template to config/garden.env; pip install -r install/requirements-weather.txt"
+echo "     Weather: config/garden.env is created from the template on first install; GARDEN_DB_URL is filled from GARDENGNOME_DATABASE_URL when set. Edit lat/lon there. Pip deps run in step 1 unless skipped."
 echo "  2) Run: openclaw health"
 echo "  3) Open dashboard with: openclaw dashboard"
 echo "  4) In Chat, use the agent picker if you still see only the default agent (main)."

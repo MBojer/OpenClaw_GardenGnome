@@ -33,7 +33,7 @@ The installer expects these commands on your `PATH`:
 | **jq** | JSON parsing for agent idempotency |
 | **git** | Clone / update the workspace checkout |
 | **curl** | Used when you run the one-liner |
-| **python3** | Cron scaffold and future automation |
+| **python3** | Cron scaffold, weather/constrained-LLM scripts; **`python3 -m pip`** needed for **`install.sh`** to install **`requirements-*.txt`** ( **`python3-pip`** on apt/dnf unless using Homebrew **Python**, which bundles pip) |
 | **node** | OpenClaw / tooling expectations |
 | **crontab** | User crontab CLI (Debian/Ubuntu: `cron` package; RHEL/Fedora: `cronie`; macOS includes it) |
 | **bash** | Installer shell |
@@ -105,6 +105,7 @@ Other useful environment variables:
 | `GARDENGNOME_DB_APPLY_SEEDS` | `0` | Set `1` to also apply **`db/postgres/seeds/*.sql`** (optional example data; default off) |
 | `GARDENGNOME_DB_SKIP_INIT` | `0` | Set `1` to skip DB prompt, connectivity test, and schema apply |
 | `GARDENGNOME_SETUP_SYSTEMD_TIMERS` | `0` | Set `1` so the installer runs **`scripts/setup_cron.sh`** (user systemd weather timers on Linux) |
+| `GARDENGNOME_SKIP_PIP_REQUIREMENTS` | `0` | Set `1` to skip **`python3 -m pip install -r install/requirements-*.txt`** during **`install.sh`** (use your own venv) |
 
 ## Manual install (from a git checkout)
 
@@ -124,7 +125,7 @@ Running `./install.sh` from a checkout still **clones or pulls into `GARDENGNOME
 1. Ensures **bash** is available, then resolves **prerequisites** (with optional prompts / auto-install as above).
 2. **Bootstrap** the workspace: `git clone` into `GARDENGNOME_ROOT`, or **`git pull --ff-only`** if it is already a git worktree. Fails clearly if the directory exists, is **non-empty**, and is **not** a repository.
 3. Creates **`.env`** from **`.env.example`** if missing (existing **`.env`** is kept). Merge new keys from **`.env.example`** by hand if you already have a **`.env`** from an older install.
-4. Optionally records **`GARDENGNOME_DATABASE_URL`**: interactive prompt (TTY), or **`export`** before install, writes into **`.env`** via **`install/merge_env_key.py`**. Skipped when **`GARDENGNOME_DB_SKIP_INIT=1`** or the URL is already set in **`.env`**.
+4. Optionally records **`GARDENGNOME_DATABASE_URL`**: interactive prompt (TTY), or **`export`** before install, writes into **`.env`** via **`install/merge_env_key.py`**. Skipped when **`GARDENGNOME_DB_SKIP_INIT=1`** or the URL is already set in **`.env`**. Creates **`config/garden.env`** from **`config/garden.env.template`** when missing and sets **`GARDEN_DB_URL`** from **`GARDENGNOME_DATABASE_URL`** when set (on later runs, still replaces a template **`user:pass`** placeholder). Then installs **`python3 -m pip install -r`** for **`install/requirements-weather.txt`** and **`install/requirements-constrained-llm.txt`** (skipped when **`GARDENGNOME_SKIP_PIP_REQUIREMENTS=1`** or **`pip`** is missing — install **`python3-pip`**).
 5. Runs **`install/setup_db.sh`**: if the URL is **unset**, skips DB work; if **set**, runs **`psql "$URL" -c 'SELECT 1'`** (connectivity). If **`GARDENGNOME_DB_APPLY_SCHEMA=1`**, applies core migrations in **`db/postgres/*.sql`** in sort order, **skipping** files already recorded in **`schema_migrations`** and any **`seed`/`example`** filenames; optional **`GARDENGNOME_DB_APPLY_SEEDS=1`** runs **`db/postgres/seeds/*.sql`**.
 6. Registers the **`AGENT_NAME`** agent with **`openclaw agents add --workspace "$GARDENGNOME_ROOT"`**, skipping registration if **`openclaw agents list --json`** already contains that name (**`jq`**, not `grep`).
 7. Ensures the **OpenClaw gateway service** is running (installs/starts if needed, restarts when already running) so agent changes are reflected in the dashboard/Web UI.
@@ -170,8 +171,8 @@ Configure **`OLLAMA_HOST`**, **`OLLAMA_EMBED_MODEL`**, **`QDRANT_URL`**, collect
 Migration **`db/postgres/004_garden_weather.sql`** creates schema **`garden`** with current conditions, hourly/daily forecasts, **`weather_log`**, alerts, and summary views.
 
 1. Apply DB migrations (include **`004`**).
-2. Copy **`config/garden.env.template`** → **`config/garden.env`**; set **`GARDEN_DB_URL`** (same as **`GARDENGNOME_DATABASE_URL`**), **`GARDEN_LAT`**, **`GARDEN_LON`**, optional **`OPEN_METEO_URL`** / **`OPEN_METEO_ARCHIVE_URL`**.
-3. **`pip install -r install/requirements-weather.txt`** (for **`scripts/weather_alerts.py`**).
+2. **`config/garden.env`** is created on first **`install.sh`** when missing; **`GARDEN_DB_URL`** is synced from **`GARDENGNOME_DATABASE_URL`** when set. Set **`GARDEN_LAT`**, **`GARDEN_LON`**, optional **`OPEN_METEO_URL`** / **`OPEN_METEO_ARCHIVE_URL`** there.
+3. **`install.sh`** runs **`pip install`** for **`install/requirements-weather.txt`** and **`install/requirements-constrained-llm.txt`** automatically (needs **`python3-pip`**). Override with **`GARDENGNOME_SKIP_PIP_REQUIREMENTS=1`** if you manage dependencies yourself.
 4. Run once: **`bash scripts/weather_current.sh`** to populate forecasts; optional **`python3 scripts/weather_historical_backfill.py`** for history (archive lag ~5 days).
 5. Linux with systemd: set **`GARDENGNOME_SETUP_SYSTEMD_TIMERS=1`** during install, or run **`bash scripts/setup_cron.sh "$GARDENGNOME_ROOT"`** — installs user timers for **`weather_current.sh`** (:00/:30), **`weather_archive.sh`** (05:00), **`weather_alerts.sh`** (06:00).
 6. **`bash scripts/daily_briefing.sh`** — dumps structured weather JSON from the DB and calls local Ollama (**`OLLAMA_HOST`**, **`BRIEFING_MODEL`** in **`config/garden.env`**) to write **`briefings/daily.md`** (gitignored).
