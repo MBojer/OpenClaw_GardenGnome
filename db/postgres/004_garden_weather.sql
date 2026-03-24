@@ -1,5 +1,5 @@
 -- Garden weather schema (Open-Meteo ingestion). Archive API has ~5 day lag; jobs use CURRENT_DATE - 6.
--- Applied after 002 by install/setup_db.sh when GARDENGNOME_DB_APPLY_SCHEMA=1.
+-- Applied after 002 by install/setup_db.sh when schema apply is enabled (default; see GARDENGNOME_DB_APPLY_SCHEMA).
 
 BEGIN;
 

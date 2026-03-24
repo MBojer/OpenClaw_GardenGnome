@@ -37,7 +37,7 @@ The installer expects these commands on your `PATH`:
 | **node** | OpenClaw / tooling expectations |
 | **crontab** | User crontab CLI (Debian/Ubuntu: `cron` package; RHEL/Fedora: `cronie`; macOS includes it) |
 | **bash** | Installer shell |
-| **psql** | **Required when `GARDENGNOME_DATABASE_URL` is set** (connectivity test + applying core migrations under **`db/postgres/*.sql`** when **`GARDENGNOME_DB_APPLY_SCHEMA=1`**). Not needed if the URL is empty or **`GARDENGNOME_DB_SKIP_INIT=1`**. |
+| **psql** | **Required when `GARDENGNOME_DATABASE_URL` is set** (connectivity test + applying **pending** core migrations under **`db/postgres/*.sql`** unless **`GARDENGNOME_DB_APPLY_SCHEMA=0`**). Not needed if the URL is empty or **`GARDENGNOME_DB_SKIP_INIT=1`**. |
 
 Recommended: **Node.js 22+**, **Python 3.10+** (align with your OpenClaw stack). For applied schema: **PostgreSQL 13+** (uses `gen_random_uuid()`).
 
@@ -101,9 +101,9 @@ Other useful environment variables:
 | `OPENCLAW_MODEL` | `openrouter/stepfun/step-3.5-flash:free` | Model passed to `openclaw agents add` |
 | `GARDENGNOME_BOOTSTRAP_SESSION` | `1` | If `1`, runs one `openclaw agent` turn when no gateway session exists yet (uses your model; set `0` to skip) |
 | `GARDENGNOME_DATABASE_URL` | _(empty)_ | **PostgreSQL URL** (`postgresql://…`); if set, the installer runs a connectivity check. Usually stored in `.env` (see `.env.example`) |
-| `GARDENGNOME_DB_APPLY_SCHEMA` | `0` | Set `1` to apply core **`db/postgres/*.sql`** migrations after connectivity (needs **`psql`**); skips already-recorded ids and seed/example filenames |
-| `GARDENGNOME_DB_APPLY_SEEDS` | `0` | Set `1` to also apply **`db/postgres/seeds/*.sql`** (optional example data; default off) |
-| `GARDENGNOME_DB_SKIP_INIT` | `0` | Set `1` to skip DB prompt, connectivity test, and schema apply |
+| `GARDENGNOME_DB_APPLY_SCHEMA` | `1` | `1` (default) applies **pending** core **`db/postgres/*.sql`** after connectivity; **`0`** = connectivity only (no DDL). Skips already-recorded ids and seed/example filenames in that folder |
+| `GARDENGNOME_DB_APPLY_SEEDS` | `auto` | **`0`** = never · **`1`** = always run seeds (idempotent) · **`auto`** = example rows when **`sender_profiles`** is empty and the seed is not yet in **`schema_migrations`** |
+| `GARDENGNOME_DB_SKIP_INIT` | `0` | Set `1` to skip DB prompt, connectivity test, migrations, and seeds |
 | `GARDENGNOME_SETUP_SYSTEMD_TIMERS` | `0` | Set `1` so the installer runs **`scripts/setup_cron.sh`** (user systemd weather timers on Linux) |
 | `GARDENGNOME_SKIP_PIP_REQUIREMENTS` | `0` | Set `1` to skip **`python3 -m pip install -r install/requirements-*.txt`** during **`install.sh`** (use your own venv) |
 
@@ -126,7 +126,7 @@ Running `./install.sh` from a checkout still **clones or pulls into `GARDENGNOME
 2. **Bootstrap** the workspace: `git clone` into `GARDENGNOME_ROOT`, or **`git pull --ff-only`** if it is already a git worktree. Fails clearly if the directory exists, is **non-empty**, and is **not** a repository.
 3. Creates **`.env`** from **`.env.example`** if missing (existing **`.env`** is kept). Merge new keys from **`.env.example`** by hand if you already have a **`.env`** from an older install.
 4. Optionally records **`GARDENGNOME_DATABASE_URL`**: interactive prompt (TTY), or **`export`** before install, writes into **`.env`** via **`install/merge_env_key.py`**. Skipped when **`GARDENGNOME_DB_SKIP_INIT=1`** or the URL is already set in **`.env`**. Creates **`config/garden.env`** from **`config/garden.env.template`** when missing and sets **`GARDEN_DB_URL`** from **`GARDENGNOME_DATABASE_URL`** when set (on later runs, still replaces a template **`user:pass`** placeholder). Then installs **`python3 -m pip install -r`** for **`install/requirements-weather.txt`** and **`install/requirements-constrained-llm.txt`** (skipped when **`GARDENGNOME_SKIP_PIP_REQUIREMENTS=1`** or **`pip`** is missing — install **`python3-pip`**).
-5. Runs **`install/setup_db.sh`**: if the URL is **unset**, skips DB work; if **set**, runs **`psql "$URL" -c 'SELECT 1'`** (connectivity). If **`GARDENGNOME_DB_APPLY_SCHEMA=1`**, applies core migrations in **`db/postgres/*.sql`** in sort order, **skipping** files already recorded in **`schema_migrations`** and any **`seed`/`example`** filenames; optional **`GARDENGNOME_DB_APPLY_SEEDS=1`** runs **`db/postgres/seeds/*.sql`**.
+5. Runs **`install/setup_db.sh`**: if the URL is **unset**, skips DB work; if **set**, runs **`psql`** connectivity, then applies **missing** core migrations in **`db/postgres/*.sql`** (unless **`GARDENGNOME_DB_APPLY_SCHEMA=0`**), **skipping** filenames with **`seed`/`example`** and ids already in **`schema_migrations`**. Seeds: **`GARDENGNOME_DB_APPLY_SEEDS`** **`auto`** (default) prefills example context when **`sender_profiles`** is empty; **`1`** always; **`0`** never.
 6. Registers the **`AGENT_NAME`** agent with **`openclaw agents add --workspace "$GARDENGNOME_ROOT"`**, skipping registration if **`openclaw agents list --json`** already contains that name (**`jq`**, not `grep`).
 7. Ensures the **OpenClaw gateway service** is running (installs/starts if needed, restarts when already running) so agent changes are reflected in the dashboard/Web UI.
 8. **Bootstraps a gateway session** for **`AGENT_NAME`** when none exists yet (one `openclaw agent` turn so **Control UI → Sessions** shows `agent:<name>:…`). Skipped when `GARDENGNOME_BOOTSTRAP_SESSION=0` or a session already exists.
@@ -153,11 +153,11 @@ openclaw dashboard
 
 **Control UI:** registered agents appear under **AI & Agents → Agents**. The **Sessions** list only includes agents after at least one gateway chat run exists; the installer creates that on first install unless you set `GARDENGNOME_BOOTSTRAP_SESSION=0`. In **Chat**, use the agent picker if you still see only the default agent.
 
-**Database:** Put **`GARDENGNOME_DATABASE_URL`** (e.g. `postgresql://user:pass@host:5432/dbname?sslmode=prefer`) in **`$GARDENGNOME_ROOT/.env`**, or export it before running the installer. Ensure the target database exists. Install **`psql`** to enable the connectivity check; set **`GARDENGNOME_DB_APPLY_SCHEMA=1`** to apply **core** migrations only (no example rows unless **`GARDENGNOME_DB_APPLY_SEEDS=1`**). Use **`GARDENGNOME_DB_SKIP_INIT=1`** to skip all DB steps. Re-run **`bash install/setup_db.sh "$GARDENGNOME_ROOT"`** after changing credentials.
+**Database:** Put **`GARDENGNOME_DATABASE_URL`** (e.g. `postgresql://user:pass@host:5432/dbname?sslmode=prefer`) in **`$GARDENGNOME_ROOT/.env`**, or export it before running the installer. Ensure the target database exists. Install **`psql`** for connectivity and migrations. By default **pending** core migrations apply; **`GARDENGNOME_DB_APPLY_SCHEMA=0`** skips DDL. Example seed data uses **`GARDENGNOME_DB_APPLY_SEEDS`** (**`auto`** by default). **`GARDENGNOME_DB_SKIP_INIT=1`** skips all DB steps. Re-run **`bash install/setup_db.sh "$GARDENGNOME_ROOT"`** after changing credentials.
 
 ### Constrained-LLM context schema (PostgreSQL + Qdrant)
 
-Migrations **`db/postgres/001_schema_placeholder.sql`** (garden placeholder) and **`002_openclaw_constrained_llm.sql`** (context tables) create routing rules, sender profiles, tool index, long-term facts, session summaries, semantic response cache metadata, tool result TTL cache, and **`rag_chunks`** metadata. **Example data** lives only under **`db/postgres/seeds/`** (apply manually or set **`GARDENGNOME_DB_APPLY_SEEDS=1`**). **Vectors** default to **Qdrant** (semantic cache + RAG); PostgreSQL holds authoritative text and TTL fields. Optional **pgvector** is described in comments at the top of **`002`** if you want a single database backend.
+Migrations **`db/postgres/001_schema_placeholder.sql`** (garden placeholder) and **`002_openclaw_constrained_llm.sql`** (context tables) create routing rules, sender profiles, tool index, long-term facts, session summaries, semantic response cache metadata, tool result TTL cache, and **`rag_chunks`** metadata. **Example data** lives under **`db/postgres/seeds/`** (installer **`GARDENGNOME_DB_APPLY_SEEDS`**: **`auto`** / **`1`** / manual **`psql`**). **Vectors** default to **Qdrant** (semantic cache + RAG); PostgreSQL holds authoritative text and TTL fields. Optional **pgvector** is described in comments at the top of **`002`** if you want a single database backend.
 
 Helper script (after `pip install -r install/requirements-constrained-llm.txt` and loading `.env`):
 

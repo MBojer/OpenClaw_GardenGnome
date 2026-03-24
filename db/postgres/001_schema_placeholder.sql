@@ -1,6 +1,6 @@
 -- GardenGnome placeholder schema (PostgreSQL).
 -- Applied by install/setup_db.sh when GARDENGNOME_DATABASE_URL is set,
--- connectivity succeeds, and GARDENGNOME_DB_APPLY_SCHEMA=1.
+-- connectivity succeeds, and GARDENGNOME_DB_APPLY_SCHEMA is not 0.
 -- Safe to re-run: uses IF NOT EXISTS where practical.
 
 BEGIN;

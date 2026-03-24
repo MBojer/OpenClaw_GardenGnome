@@ -45,8 +45,9 @@ if ! psql "$db_url" -v ON_ERROR_STOP=1 -c "SELECT 1" >/dev/null 2>&1; then
 fi
 echo "PostgreSQL connectivity OK."
 
-if [[ "${GARDENGNOME_DB_APPLY_SCHEMA:-0}" != "1" ]]; then
-  echo "Schema not applied (set GARDENGNOME_DB_APPLY_SCHEMA=1 to run db/postgres migrations)."
+# 0 = connectivity only (never run db/postgres/*.sql). Unset or any other value = apply pending core migrations.
+if [[ "${GARDENGNOME_DB_APPLY_SCHEMA:-1}" == "0" ]]; then
+  echo "GARDENGNOME_DB_APPLY_SCHEMA=0 — skipping migration files (connectivity test only)."
   exit 0
 fi
 
@@ -117,7 +118,21 @@ for f in "${files[@]}"; do
   psql "$db_url" -v ON_ERROR_STOP=1 -f "$f"
 done
 
-if [[ "${GARDENGNOME_DB_APPLY_SEEDS:-0}" == "1" ]]; then
+# 0 = never | 1 = always run all seeds (idempotent) | auto = run each seed only if not yet recorded and example context looks empty
+seeds_mode="${GARDENGNOME_DB_APPLY_SEEDS:-auto}"
+seeds_mode_lc="${seeds_mode,,}"
+
+sender_profiles_empty_for_auto_seed() {
+  local cnt
+  if ! migration_is_recorded "002_openclaw_constrained_llm"; then
+    return 1
+  fi
+  cnt="$(psql "$db_url" -v ON_ERROR_STOP=1 -tAqc \
+    "SELECT COUNT(*)::text FROM public.sender_profiles;" 2>/dev/null || echo "")"
+  [[ "$cnt" == "0" ]]
+}
+
+if [[ "$seeds_mode_lc" != "0" ]]; then
   seeds_dir="$sql_dir/seeds"
   if [[ -d "$seeds_dir" ]]; then
     shopt -s nullglob
@@ -129,12 +144,27 @@ if [[ "${GARDENGNOME_DB_APPLY_SEEDS:-0}" == "1" ]]; then
     done < <(printf '%s\n' "${seed_candidates[@]}" | LC_ALL=C sort)
     for s in "${seeds[@]}"; do
       [[ -f "$s" ]] || continue
-      echo "Applying seed $(basename "$s") (GARDENGNOME_DB_APPLY_SEEDS=1) …"
-      psql "$db_url" -v ON_ERROR_STOP=1 -f "$s"
+      sid="$(migration_id_from_file "$s")"
+      if [[ "$seeds_mode_lc" == "1" ]]; then
+        echo "Applying seed $(basename "$s") (GARDENGNOME_DB_APPLY_SEEDS=1) …"
+        psql "$db_url" -v ON_ERROR_STOP=1 -f "$s"
+        continue
+      fi
+      if [[ "$seeds_mode_lc" == "auto" ]]; then
+        if migration_is_recorded "$sid"; then
+          continue
+        fi
+        if ! sender_profiles_empty_for_auto_seed; then
+          echo "Skipping seed $(basename "$s") (auto: sender_profiles non-empty or 002 not applied yet)."
+          continue
+        fi
+        echo "Applying seed $(basename "$s") (GARDENGNOME_DB_APPLY_SEEDS=auto) …"
+        psql "$db_url" -v ON_ERROR_STOP=1 -f "$s"
+      fi
     done
-  else
+  elif [[ "$seeds_mode_lc" == "1" ]]; then
     echo "WARN: GARDENGNOME_DB_APPLY_SEEDS=1 but $seeds_dir missing."
   fi
 fi
 
-echo "PostgreSQL migrations finished (core schema only unless seeds flag was set)."
+echo "PostgreSQL setup finished (pending core migrations applied; seeds: $seeds_mode)."

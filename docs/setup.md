@@ -11,14 +11,14 @@
 
 - `.env` is not overwritten if it already exists.
 - New keys in `.env.example` (e.g. **`GARDENGNOME_DATABASE_URL`**) must be merged into an existing **`.env`** by hand.
-- When **`GARDENGNOME_DATABASE_URL`** is set, the installer **requires `psql`** on `PATH` (or offers to install **`postgresql-client`** / **`libpq`** in interactive mode). Then **`install/setup_db.sh`** runs **`psql`** `SELECT 1`. Schema apply runs only when **`GARDENGNOME_DB_APPLY_SCHEMA=1`**. **`GARDENGNOME_DB_SKIP_INIT=1`** skips prompts, the **`psql`** check, connectivity test, and schema.
+- When **`GARDENGNOME_DATABASE_URL`** is set, the installer **requires `psql`** on `PATH` (or offers to install **`postgresql-client`** / **`libpq`** in interactive mode). Then **`install/setup_db.sh`** runs **`psql`** `SELECT 1`, applies **pending** core **`db/postgres/*.sql`** unless **`GARDENGNOME_DB_APPLY_SCHEMA=0`**, and handles seeds per **`GARDENGNOME_DB_APPLY_SEEDS`** (**`0`** / **`auto`** / **`1`**). **`GARDENGNOME_DB_SKIP_INIT=1`** skips prompts, the **`psql`** check, connectivity test, migrations, and seeds.
 - Existing agent registration is detected and skipped.
 - Cron step is scaffold-only (no real schedules yet).
 - Verification can be run directly with `bash install/verify.sh`.
 
 ## Constrained-LLM database (optional)
 
-1. Set **`GARDENGNOME_DATABASE_URL`** and **`GARDENGNOME_DB_APPLY_SCHEMA=1`**, then run **`bash install/setup_db.sh "$GARDENGNOME_ROOT"`** (or the installer). Core **`db/postgres/*.sql`** runs in sort order, **omitting** migrations already in **`schema_migrations`**, and **never** applies **`db/postgres/seeds/*.sql`** unless **`GARDENGNOME_DB_APPLY_SEEDS=1`**. For optional starter rows: **`psql … -f db/postgres/seeds/003_example_openclaw_context.sql`** or the **`seed-examples`** Python command.
+1. Set **`GARDENGNOME_DATABASE_URL`**, then run **`bash install/setup_db.sh "$GARDENGNOME_ROOT"`** (or the installer). Core **`db/postgres/*.sql`** runs in sort order, **omitting** migrations already in **`schema_migrations`** (disable DDL with **`GARDENGNOME_DB_APPLY_SCHEMA=0`**). Seeds: **`auto`** (default) adds example rows when **`sender_profiles`** is empty; **`1`** always; **`0`** never. Or apply **`psql … -f db/postgres/seeds/003_example_openclaw_context.sql`** / **`seed-examples`** manually.
 2. For semantic cache / RAG, run **Qdrant** and **Ollama** with an embedding-capable model; copy **`OLLAMA_*`**, **`QDRANT_*`**, and score thresholds from **`.env.example`** into **`.env`**.
 3. Install Python deps: **`pip install -r install/requirements-constrained-llm.txt`**.
 4. Optionally: **`python3 scripts/constrained_llm_pipeline.py seed-examples`**, then **`warmup-semantic-cache`** / **`warmup-rag-chunk`** to embed and index content.
@@ -26,7 +26,7 @@
 
 ## Weather stack
 
-1. Apply **`db/postgres/004_garden_weather.sql`** via **`GARDENGNOME_DB_APPLY_SCHEMA=1`** and **`install/setup_db.sh`**.
+1. Apply **`db/postgres/004_garden_weather.sql`** via **`install/setup_db.sh`** (included with other pending migrations unless **`GARDENGNOME_DB_APPLY_SCHEMA=0`**).
 2. **`install.sh`** creates **`config/garden.env`** from the template when missing and syncs **`GARDEN_DB_URL`** from **`GARDENGNOME_DATABASE_URL`** when possible; edit coordinates and thresholds there. **`pip install`** for weather/constrained-LLM requirements runs during install unless skipped.
 3. **`bash scripts/weather_current.sh`** — first fill of **`garden.weather_*`**; then **`python3 scripts/weather_historical_backfill.py`** optional.
 4. User timers: **`bash scripts/setup_cron.sh`** (or **`GARDENGNOME_SETUP_SYSTEMD_TIMERS=1`** on install). For timers to run when logged out, enable **linger**: `loginctl enable-linger "$USER"`.
