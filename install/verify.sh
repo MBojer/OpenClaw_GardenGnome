@@ -14,7 +14,7 @@ for required in "README.md" "install.sh" ".env.example" "install/setup_env.sh" "
   fi
 done
 
-for cmd in python3 node; do
+for cmd in python3 node jq git curl crontab; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "WARN: Command not found: $cmd"
   fi
