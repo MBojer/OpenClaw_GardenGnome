@@ -1,5 +1,6 @@
 .env
 config/garden.env
+.openclaw/gardengnome-state.json
 logs/
 briefings/
 *.log

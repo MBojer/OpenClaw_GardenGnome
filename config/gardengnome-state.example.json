@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "onboarding": {
+    "profileDoneAt": null,
+    "identityDoneAt": null,
+    "identitySkipped": false,
+    "locationDoneAt": null,
+    "locationLabel": null
+  },
+  "weather": {
+    "historicalBackfillAt": null
+  }
+}

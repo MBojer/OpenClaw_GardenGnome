@@ -14,8 +14,9 @@ for required in \
   "db/postgres/001_schema_placeholder.sql" "db/postgres/002_openclaw_constrained_llm.sql" \
   "db/postgres/004_garden_weather.sql" \
   "db/postgres/seeds/003_example_openclaw_context.sql" \
-  "config/garden.env.template" \
+  "config/garden.env.template" "config/gardengnome-state.example.json" \
   "scripts/constrained_llm_pipeline.py" \
+  "scripts/geocode_garden.py" \
   "scripts/weather_parse.py" "scripts/weather_historical_backfill.py" "scripts/weather_alerts.py" \
   "scripts/weather_current.sh" "scripts/weather_archive.sh" "scripts/weather_alerts.sh" \
   "scripts/setup_cron.sh" "scripts/daily_briefing.sh" "scripts/sql/daily_briefing_weather.sql" \
