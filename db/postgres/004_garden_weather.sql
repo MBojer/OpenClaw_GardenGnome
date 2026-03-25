@@ -3,9 +3,9 @@
 
 BEGIN;
 
-CREATE SCHEMA IF NOT EXISTS garden;
+CREATE SCHEMA IF NOT EXISTS weather;
 
-CREATE TABLE IF NOT EXISTS garden.weather_current (
+CREATE TABLE IF NOT EXISTS weather.weather_current (
     id                  INTEGER PRIMARY KEY DEFAULT 1,
     fetched_at          TIMESTAMPTZ NOT NULL,
     temperature_c       NUMERIC(5,2),
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS garden.weather_current (
     CONSTRAINT weather_current_single_row CHECK (id = 1)
 );
 
-CREATE TABLE IF NOT EXISTS garden.weather_forecast_hourly (
+CREATE TABLE IF NOT EXISTS weather.weather_forecast_hourly (
     id                  BIGSERIAL PRIMARY KEY,
     fetched_at          TIMESTAMPTZ NOT NULL,
     forecast_time       TIMESTAMPTZ NOT NULL,
@@ -53,9 +53,9 @@ CREATE TABLE IF NOT EXISTS garden.weather_forecast_hourly (
 );
 
 CREATE INDEX IF NOT EXISTS idx_forecast_hourly_time
-    ON garden.weather_forecast_hourly (forecast_time);
+    ON weather.weather_forecast_hourly (forecast_time);
 
-CREATE TABLE IF NOT EXISTS garden.weather_forecast_daily (
+CREATE TABLE IF NOT EXISTS weather.weather_forecast_daily (
     id                  BIGSERIAL PRIMARY KEY,
     fetched_at          TIMESTAMPTZ NOT NULL,
     forecast_date       DATE NOT NULL UNIQUE,
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS garden.weather_forecast_daily (
     heating_degree_days NUMERIC(5,2)
 );
 
-CREATE TABLE IF NOT EXISTS garden.weather_log (
+CREATE TABLE IF NOT EXISTS weather.weather_log (
     log_date            DATE PRIMARY KEY,
     temp_max_c          NUMERIC(5,2),
     temp_min_c          NUMERIC(5,2),
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS garden.weather_log (
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS garden.weather_alerts (
+CREATE TABLE IF NOT EXISTS weather.weather_alerts (
     id          BIGSERIAL PRIMARY KEY,
     alert_type  TEXT NOT NULL,
     severity    TEXT,
@@ -111,10 +111,10 @@ CREATE TABLE IF NOT EXISTS garden.weather_alerts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_active
-    ON garden.weather_alerts (resolved_at)
+    ON weather.weather_alerts (resolved_at)
     WHERE resolved_at IS NULL;
 
-CREATE OR REPLACE VIEW garden.weather_recent_summary AS
+CREATE OR REPLACE VIEW weather.weather_recent_summary AS
 SELECT
     COUNT(*) FILTER (WHERE frost_day)       AS frost_days,
     SUM(precipitation_mm)                   AS total_precip_mm,
@@ -123,10 +123,10 @@ SELECT
     MIN(temp_min_c)                         AS min_temp_c,
     SUM(gdd_base10)                         AS cumulative_gdd,
     COUNT(*) FILTER (WHERE precipitation_mm = 0) AS dry_days
-FROM garden.weather_log
+FROM weather.weather_log
 WHERE log_date >= CURRENT_DATE - INTERVAL '14 days';
 
-CREATE OR REPLACE VIEW garden.weather_next_24h AS
+CREATE OR REPLACE VIEW weather.weather_next_24h AS
 SELECT
     MIN(temperature_c)                      AS temp_min_c,
     MAX(temperature_c)                      AS temp_max_c,
@@ -136,22 +136,22 @@ SELECT
     BOOL_OR(spray_safe)                     AS any_spray_window,
     BOOL_AND(NOT spray_safe)                AS no_spray_window,
     (MIN(temperature_c) < 2.0)              AS frost_risk
-FROM garden.weather_forecast_hourly
+FROM weather.weather_forecast_hourly
 WHERE forecast_time BETWEEN NOW() AND NOW() + INTERVAL '24 hours';
 
-CREATE OR REPLACE VIEW garden.weather_gdd_season AS
+CREATE OR REPLACE VIEW weather.weather_gdd_season AS
 SELECT
     SUM(gdd_base10) AS gdd_this_year,
     (
         SELECT AVG(annual_gdd) FROM (
             SELECT EXTRACT(YEAR FROM log_date) AS yr, SUM(gdd_base10) AS annual_gdd
-            FROM garden.weather_log
+            FROM weather.weather_log
             WHERE EXTRACT(DOY FROM log_date) <= EXTRACT(DOY FROM CURRENT_DATE)
               AND EXTRACT(YEAR FROM log_date) < EXTRACT(YEAR FROM CURRENT_DATE)
             GROUP BY yr
         ) hist
     ) AS gdd_historical_avg
-FROM garden.weather_log
+FROM weather.weather_log
 WHERE EXTRACT(YEAR FROM log_date) = EXTRACT(YEAR FROM CURRENT_DATE);
 
 INSERT INTO schema_migrations (id) VALUES ('004_garden_weather') ON CONFLICT DO NOTHING;

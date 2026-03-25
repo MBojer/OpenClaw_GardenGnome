@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Daily: fill garden.weather_log gaps up to (today - 6) via archive API (~5 day lag).
+# Daily: fill weather.weather_log gaps up to (today - 6) via archive API (~5 day lag).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -58,7 +58,7 @@ db = os.environ.get("GARDEN_DB_URL", "")
 if not db:
     raise SystemExit("GARDEN_DB_URL missing")
 out = check_output(
-    ["psql", db, "-tAqc", "SELECT COALESCE(MAX(log_date)::text, '') FROM garden.weather_log;"],
+    ["psql", db, "-tAqc", "SELECT COALESCE(MAX(log_date)::text, '') FROM weather.weather_log;"],
     text=True,
 ).strip()
 end = date.today() - timedelta(days=6)

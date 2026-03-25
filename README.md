@@ -167,7 +167,7 @@ Configure **`OLLAMA_HOST`**, **`OLLAMA_EMBED_MODEL`**, **`QDRANT_URL`**, collect
 
 ### Weather (Open-Meteo, no API key)
 
-Migration **`db/postgres/004_garden_weather.sql`** creates schema **`garden`** with current conditions, hourly/daily forecasts, **`weather_log`**, alerts, and summary views.
+Migration **`db/postgres/004_garden_weather.sql`** creates schema **`weather`** with current conditions, hourly/daily forecasts, **`weather_log`**, alerts, and summary views.
 
 1. Apply DB migrations (include **`004`**).
 2. **`config/garden.env`** is created on first **`install.sh`** when missing; **`GARDEN_DB_URL`** is synced from **`GARDENGNOME_DATABASE_URL`** when set. Set **`GARDEN_LAT`**, **`GARDEN_LON`**, optional **`OPEN_METEO_URL`** / **`OPEN_METEO_ARCHIVE_URL`** there.
@@ -177,7 +177,7 @@ Migration **`db/postgres/004_garden_weather.sql`** creates schema **`garden`** w
 6. **`bash scripts/daily_briefing.sh`** — dumps structured weather JSON from the DB and calls local Ollama (**`OLLAMA_HOST`**, **`BRIEFING_MODEL`** in **`config/garden.env`**) to write **`briefings/daily.md`** (gitignored).
 7. Static site context: **`ref/CLIMATE.md`** (fill in manually).
 
-The primary cloud LLM should read **`briefings/daily.md`** or query **`garden.*`** — not call weather HTTP APIs.
+The primary cloud LLM should read **`briefings/daily.md`** or query **`weather.*`** — not call weather HTTP APIs.
 
 ## Reference
 

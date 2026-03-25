@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Parse Open-Meteo JSON and emit SQL for garden.* weather tables.
+Parse Open-Meteo JSON and emit SQL for weather.* weather tables.
 Usage: weather_parse.py --mode current|hourly|daily|archive [--file path]
 JSON on stdin if --file omitted. Threshold env vars optional (see config/garden.env.template).
 """
@@ -217,7 +217,7 @@ def emit_current(data: dict[str, Any]) -> None:
     ]
     sets = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c != "id")
     print(
-        "INSERT INTO garden.weather_current ("
+        "INSERT INTO weather.weather_current ("
         + ", ".join(cols)
         + ") VALUES ("
         + ", ".join(vals)
@@ -298,7 +298,7 @@ def emit_hourly(data: dict[str, Any]) -> None:
             sql_bool(good_out),
         ]
         print(
-            "INSERT INTO garden.weather_forecast_hourly (fetched_at, forecast_time, temperature_c, feels_like_c, "
+            "INSERT INTO weather.weather_forecast_hourly (fetched_at, forecast_time, temperature_c, feels_like_c, "
             "humidity_pct, dewpoint_c, wind_speed_ms, wind_direction_deg, wind_gusts_ms, precip_prob_pct, precip_mm, "
             "rain_mm, snowfall_cm, cloud_cover_pct, uv_index, weather_code, spray_safe, good_outdoor_window) VALUES ("
             + ", ".join(vals)
@@ -371,7 +371,7 @@ def emit_daily(data: dict[str, Any]) -> None:
             sql_num(hdd),
         ]
         print(
-            "INSERT INTO garden.weather_forecast_daily (fetched_at, forecast_date, temp_max_c, temp_min_c, "
+            "INSERT INTO weather.weather_forecast_daily (fetched_at, forecast_date, temp_max_c, temp_min_c, "
             "precip_sum_mm, precip_prob_max_pct, rain_sum_mm, snowfall_sum_cm, wind_speed_max_ms, wind_gusts_max_ms, "
             "uv_index_max, sunrise, sunset, weather_code, frost_risk, heavy_rain, good_laundry_day, heating_degree_days) "
             "VALUES (" + ", ".join(vals) + ") ON CONFLICT (forecast_date) DO UPDATE SET "
@@ -432,7 +432,7 @@ def emit_archive(data: dict[str, Any]) -> None:
             sql_num(gdd),
         ]
         print(
-            "INSERT INTO garden.weather_log (log_date, temp_max_c, temp_min_c, temp_mean_c, precipitation_mm, rain_mm, "
+            "INSERT INTO weather.weather_log (log_date, temp_max_c, temp_min_c, temp_mean_c, precipitation_mm, rain_mm, "
             "snowfall_cm, wind_speed_max_ms, wind_gusts_max_ms, humidity_mean_pct, dewpoint_mean_c, pressure_mean_hpa, "
             "sunshine_hours, uv_index_max, et0_mm, weather_code, frost_day, gdd_base10) VALUES ("
             + ", ".join(vals)

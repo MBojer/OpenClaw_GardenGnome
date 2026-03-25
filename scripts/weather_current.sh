@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch current + hourly + daily forecast from Open-Meteo; load garden.* tables; refresh alerts.
+# Fetch current + hourly + daily forecast from Open-Meteo; load weather.* tables; refresh alerts.
 # Intended: every 30 minutes (systemd timer). Rate limit: stay at ≥15 min between calls.
 set -euo pipefail
 
@@ -65,9 +65,9 @@ curl -sS -f -o "$TMP" -G "${BASE}/v1/forecast" \
 
 {
   echo "BEGIN;"
-  echo "TRUNCATE garden.weather_forecast_hourly RESTART IDENTITY;"
+  echo "TRUNCATE weather.weather_forecast_hourly RESTART IDENTITY;"
   python3 "$ROOT/scripts/weather_parse.py" --file "$TMP" --mode hourly
-  echo "TRUNCATE garden.weather_forecast_daily RESTART IDENTITY;"
+  echo "TRUNCATE weather.weather_forecast_daily RESTART IDENTITY;"
   python3 "$ROOT/scripts/weather_parse.py" --file "$TMP" --mode daily
   python3 "$ROOT/scripts/weather_parse.py" --file "$TMP" --mode current
   echo "COMMIT;"

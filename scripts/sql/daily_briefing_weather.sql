@@ -15,13 +15,13 @@ SELECT row_to_json(t) FROM (
         (SELECT json_agg(row_to_json(d)) FROM (
             SELECT forecast_date, temp_max_c, temp_min_c, precip_sum_mm,
                    precip_prob_max_pct, frost_risk, good_laundry_day, weather_code
-            FROM garden.weather_forecast_daily
+            FROM weather.weather_forecast_daily
             ORDER BY forecast_date LIMIT 7
         ) d) AS forecast_7day,
-        (SELECT row_to_json(r) FROM garden.weather_recent_summary r) AS last_14_days,
-        (SELECT row_to_json(n) FROM garden.weather_next_24h n) AS next_24h,
-        (SELECT json_agg(row_to_json(a)) FROM garden.weather_alerts a
+        (SELECT row_to_json(r) FROM weather.weather_recent_summary r) AS last_14_days,
+        (SELECT row_to_json(n) FROM weather.weather_next_24h n) AS next_24h,
+        (SELECT json_agg(row_to_json(a)) FROM weather.weather_alerts a
             WHERE resolved_at IS NULL) AS active_alerts
-    FROM garden.weather_current c
+    FROM weather.weather_current c
     WHERE c.id = 1
 ) t;

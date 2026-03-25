@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Evaluate garden.weather_* tables and maintain garden.weather_alerts.
+Evaluate weather.weather_* tables and maintain weather.weather_alerts.
 Requires: pip install -r install/requirements-weather.txt
 Environment: GARDEN_DB_URL (and thresholds from config/garden.env if sourced by wrapper).
 """
@@ -33,7 +33,7 @@ def connect():
 def resolve_expired(cur) -> None:
     cur.execute(
         """
-        UPDATE garden.weather_alerts
+        UPDATE weather.weather_alerts
         SET resolved_at = NOW()
         WHERE resolved_at IS NULL
           AND valid_until IS NOT NULL
@@ -45,7 +45,7 @@ def resolve_expired(cur) -> None:
 def resolve_type(cur, alert_type: str) -> None:
     cur.execute(
         """
-        UPDATE garden.weather_alerts
+        UPDATE weather.weather_alerts
         SET resolved_at = NOW()
         WHERE resolved_at IS NULL AND alert_type = %s;
         """,
@@ -56,7 +56,7 @@ def resolve_type(cur, alert_type: str) -> None:
 def upsert_alert(cur, alert_type: str, severity: str, message: str, vf, vu) -> None:
     cur.execute(
         """
-        INSERT INTO garden.weather_alerts (alert_type, severity, message, valid_from, valid_until)
+        INSERT INTO weather.weather_alerts (alert_type, severity, message, valid_from, valid_until)
         VALUES (%s, %s, %s, %s, %s);
         """,
         (alert_type, severity, message, vf, vu),
@@ -79,7 +79,7 @@ def main() -> None:
             cur.execute(
                 """
                 SELECT EXISTS (
-                  SELECT 1 FROM garden.weather_forecast_hourly
+                  SELECT 1 FROM weather.weather_forecast_hourly
                   WHERE forecast_time >= NOW()
                     AND forecast_time <= NOW() + INTERVAL '18 hours'
                     AND temperature_c < %s
@@ -103,7 +103,7 @@ def main() -> None:
             cur.execute(
                 """
                 SELECT EXISTS (
-                  SELECT 1 FROM garden.weather_forecast_daily
+                  SELECT 1 FROM weather.weather_forecast_daily
                   WHERE forecast_date > CURRENT_DATE
                     AND forecast_date <= CURRENT_DATE + 3
                     AND precip_sum_mm > %s
@@ -127,7 +127,7 @@ def main() -> None:
             cur.execute(
                 """
                 SELECT EXISTS (
-                  SELECT 1 FROM garden.weather_forecast_hourly
+                  SELECT 1 FROM weather.weather_forecast_hourly
                   WHERE forecast_time >= NOW()
                     AND forecast_time <= NOW() + INTERVAL '12 hours'
                     AND wind_gusts_ms > %s
@@ -151,7 +151,7 @@ def main() -> None:
             cur.execute(
                 """
                 SELECT EXISTS (
-                  SELECT 1 FROM garden.weather_forecast_daily
+                  SELECT 1 FROM weather.weather_forecast_daily
                   WHERE forecast_date > CURRENT_DATE
                     AND forecast_date <= CURRENT_DATE + 3
                     AND temp_max_c > %s
@@ -178,7 +178,7 @@ def main() -> None:
                   SELECT forecast_time, spray_safe,
                     row_number() OVER (ORDER BY forecast_time)
                       - row_number() OVER (PARTITION BY spray_safe ORDER BY forecast_time) AS grp
-                  FROM garden.weather_forecast_hourly
+                  FROM weather.weather_forecast_hourly
                   WHERE forecast_time >= NOW()
                     AND forecast_time <= NOW() + INTERVAL '24 hours'
                 ),
@@ -206,7 +206,7 @@ def main() -> None:
             tomorrow = today + timedelta(days=1)
             cur.execute(
                 """
-                SELECT good_laundry_day FROM garden.weather_forecast_daily
+                SELECT good_laundry_day FROM weather.weather_forecast_daily
                 WHERE forecast_date = %s;
                 """,
                 (tomorrow,),
