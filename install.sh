@@ -224,7 +224,7 @@ maybe_bootstrap_agent_session() {
   echo "(so Control UI → Sessions lists this agent). Set GARDENGNOME_BOOTSTRAP_SESSION=0 to skip."
 
   if openclaw agent --agent "$AGENT_NAME" \
-    --message "GardenGnome install bootstrap. Reply with exactly: HEARTBEAT_OK" \
+    --message "GardenGnome install bootstrap. Reply with exactly: Say something to start the setup process" \
     --json >/dev/null 2>&1; then
     echo "Bootstrap complete."
   else
