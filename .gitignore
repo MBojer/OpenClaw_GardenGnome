@@ -1,6 +1,7 @@
 .env
 config/garden.env
 .openclaw/gardengnome-state.json
+.openclaw/workspace-state.json
 
 # User-owned workspace docs (seeded from templates/ on first install only; never overwritten by git pull)
 /USER.md
@@ -18,3 +19,4 @@ tmp/
 memory/
 .idea/
 .vscode/
+avatars/
