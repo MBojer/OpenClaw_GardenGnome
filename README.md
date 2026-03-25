@@ -104,7 +104,6 @@ Other useful environment variables:
 | `GARDENGNOME_DB_APPLY_SCHEMA` | `1` | `1` (default) applies **pending** core **`db/postgres/*.sql`** after connectivity; **`0`** = connectivity only (no DDL). Skips already-recorded ids and seed/example filenames in that folder |
 | `GARDENGNOME_DB_APPLY_SEEDS` | `auto` | **`0`** = never · **`1`** = always run seeds (idempotent) · **`auto`** = example rows when **`sender_profiles`** is empty and the seed is not yet in **`schema_migrations`** |
 | `GARDENGNOME_DB_SKIP_INIT` | `0` | Set `1` to skip DB prompt, connectivity test, migrations, and seeds |
-| `GARDENGNOME_SETUP_SYSTEMD_TIMERS` | `0` | Set `1` so the installer runs **`scripts/setup_cron.sh`** (user systemd weather timers on Linux) |
 | `GARDENGNOME_SKIP_PIP_REQUIREMENTS` | `0` | Set `1` to skip **`python3 -m pip install -r install/requirements-*.txt`** during **`install.sh`** (use your own venv) |
 
 ## Manual install (from a git checkout)
@@ -174,7 +173,7 @@ Migration **`db/postgres/004_garden_weather.sql`** creates schema **`garden`** w
 2. **`config/garden.env`** is created on first **`install.sh`** when missing; **`GARDEN_DB_URL`** is synced from **`GARDENGNOME_DATABASE_URL`** when set. Set **`GARDEN_LAT`**, **`GARDEN_LON`**, optional **`OPEN_METEO_URL`** / **`OPEN_METEO_ARCHIVE_URL`** there.
 3. **`install.sh`** runs **`pip install`** for **`install/requirements-weather.txt`** and **`install/requirements-constrained-llm.txt`** automatically (needs **`python3-pip`**). Override with **`GARDENGNOME_SKIP_PIP_REQUIREMENTS=1`** if you manage dependencies yourself.
 4. Run once: **`bash scripts/weather_current.sh`** to populate forecasts; optional **`python3 scripts/weather_historical_backfill.py`** for history (archive lag ~5 days).
-5. Linux with systemd: set **`GARDENGNOME_SETUP_SYSTEMD_TIMERS=1`** during install, or run **`bash scripts/setup_cron.sh "$GARDENGNOME_ROOT"`** — installs user timers for **`weather_current.sh`** (:00/:30), **`weather_archive.sh`** (05:00), **`weather_alerts.sh`** (06:00).
+5. Linux with systemd: the installer installs and starts user timers for **`weather_current.sh`** (:00/:30), **`weather_archive.sh`** (05:00), **`weather_alerts.sh`** (06:00). Timers require linger to run when logged out: `loginctl enable-linger "$USER"`.
 6. **`bash scripts/daily_briefing.sh`** — dumps structured weather JSON from the DB and calls local Ollama (**`OLLAMA_HOST`**, **`BRIEFING_MODEL`** in **`config/garden.env`**) to write **`briefings/daily.md`** (gitignored).
 7. Static site context: **`ref/CLIMATE.md`** (fill in manually).
 

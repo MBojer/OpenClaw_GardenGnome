@@ -610,10 +610,8 @@ fi
 
 step "6/8 Setup cron scaffolding"
 python3 "$ROOT/install/setup_cron.py"
-if [[ "${GARDENGNOME_SETUP_SYSTEMD_TIMERS:-0}" == "1" ]]; then
-  if [[ -x "$ROOT/scripts/setup_cron.sh" ]]; then
-    bash "$ROOT/scripts/setup_cron.sh" "$ROOT" || echo "WARN: systemd timer setup failed (optional)."
-  fi
+if [[ -x "$ROOT/scripts/setup_cron.sh" ]]; then
+  bash "$ROOT/scripts/setup_cron.sh" "$ROOT" || echo "WARN: systemd timer setup failed (optional)."
 fi
 
 step "7/8 Verify installation"

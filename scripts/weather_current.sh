@@ -6,6 +6,31 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+STATEF="$ROOT/.openclaw/gardengnome-state.json"
+READY="$(python3 - "$STATEF" <<'PY'
+import json, sys
+path = sys.argv[1]
+def is_non_null(v):
+    return v is not None and v != "" and v != "null"
+ready = False
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    onboard = data.get("onboarding") or {}
+    weather = data.get("weather") or {}
+    loc = onboard.get("locationDoneAt", None)
+    hist = weather.get("historicalBackfillAt", None)
+    ready = is_non_null(loc) and is_non_null(hist)
+except Exception:
+    ready = False
+print("1" if ready else "0")
+PY
+)"
+if [[ "$READY" != "1" ]]; then
+  echo "Skipping weather_current: onboarding.locationDoneAt and weather.historicalBackfillAt must both be set in .openclaw/gardengnome-state.json"
+  exit 0
+fi
+
 ENVF="$ROOT/config/garden.env"
 if [[ ! -f "$ENVF" ]]; then
   echo "Missing $ENVF (copy config/garden.env.template)" >&2
