@@ -12,7 +12,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -58,9 +58,25 @@ def fetch_json(url: str) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parent.parent
-    load_garden_env(root)
+def write_historical_backfill_timestamp(root: Path) -> None:
+    """Set weather.historicalBackfillAt in .openclaw/gardengnome-state.json after a successful run."""
+    state_path = root / ".openclaw" / "gardengnome-state.json"
+    example_path = root / "config" / "gardengnome-state.example.json"
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    if state_path.is_file():
+        data = json.loads(state_path.read_text(encoding="utf-8"))
+    elif example_path.is_file():
+        data = json.loads(example_path.read_text(encoding="utf-8"))
+    else:
+        data = {"version": 1, "onboarding": {}, "weather": {}}
+
+    data.setdefault("weather", {})["historicalBackfillAt"] = ts
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def _run_backfill(root: Path) -> int:
     lat = float(os.environ["GARDEN_LAT"])
     lon = float(os.environ["GARDEN_LON"])
     base = os.environ.get("OPEN_METEO_ARCHIVE_URL", "https://archive-api.open-meteo.com")
@@ -113,6 +129,18 @@ def main() -> int:
         print(f"  applied {year}", flush=True)
 
     return 0
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parent.parent
+    load_garden_env(root)
+    rc = _run_backfill(root)
+    if rc == 0:
+        try:
+            write_historical_backfill_timestamp(root)
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            print(f"Warning: could not update gardengnome-state.json: {e}", file=sys.stderr)
+    return rc
 
 
 if __name__ == "__main__":

@@ -5,7 +5,8 @@
     "identityDoneAt": null,
     "identitySkipped": false,
     "locationDoneAt": null,
-    "locationLabel": null
+    "locationLabel": null,
+    "postLocationBootstrapAt": null
   },
   "weather": {
     "historicalBackfillAt": null

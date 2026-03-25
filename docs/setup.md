@@ -27,9 +27,9 @@
 
 ## First run / agent onboarding (`/gnome`)
 
-1. **State file:** the agent uses **`.openclaw/gardengnome-state.json`** (gitignored). Template: **`config/gardengnome-state.example.json`**. Tracks profile, identity, location, and whether historical weather backfill ran.
+1. **State file:** the agent uses **`.openclaw/gardengnome-state.json`** (gitignored). Template: **`config/gardengnome-state.example.json`**. Tracks profile, identity, location, **`onboarding.postLocationBootstrapAt`**, and **`weather.historicalBackfillAt`**.
 2. **Location:** city, address, or lat/lon. Use **`python3 scripts/geocode_garden.py`** — **`search`** lists candidates (refine if none); user must **confirm** before **`apply-search`** or **`apply-coords`**. **`smoke`** checks bounds and a minimal Open-Meteo forecast (and prints an inferred **IANA timezone**). **`apply-coords`** can omit **`--timezone`**; Open-Meteo supplies **`GARDEN_TIMEZONE`**. Profile onboarding should not ask for timezone separately when location will set it; sync **`USER.md`** from **`config/garden.env`** after location. See **`AGENTS.md`** for the full `/gnome` checklist.
-3. **After location is applied** to **`config/garden.env`**, populate **`garden.weather_log`** with **`python3 scripts/weather_historical_backfill.py`** (needs **`GARDEN_DB_URL`**, network, migration **`004`**).
+3. **Post-location bootstrap:** After name + location are saved in state, the agent must apply default **`IDENTITY.md`** (from **`templates/IDENTITY.md`**), ensure **`avatars/openclaw.png`** exists, launch historical backfill (**`nohup python3 scripts/weather_historical_backfill.py >> tmp/weather_backfill.log 2>&1 &`** when **`weather.historicalBackfillAt`** is still unset) so **`garden.weather_log`** can populate (**`GARDEN_DB_URL`**, network, migration **`004`**), set **`onboarding.postLocationBootstrapAt`**, then send the scripted prompt in **`AGENTS.md`**. The backfill script writes **`weather.historicalBackfillAt`** to **`.openclaw/gardengnome-state.json`** when the process exits successfully.
 
 ## Weather stack
 

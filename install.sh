@@ -501,6 +501,21 @@ ensure_workspace_personal_docs() {
   done
 }
 
+# Optional avatar: copy placeholder when missing (user-owned; replace anytime).
+ensure_workspace_avatar_placeholder() {
+  local root="$1"
+  local src="$root/templates/avatars/openclaw.png"
+  local dst="$root/avatars/openclaw.png"
+  if [[ ! -f "$src" ]]; then
+    return 0
+  fi
+  mkdir -p "$root/avatars"
+  if [[ ! -f "$dst" ]]; then
+    cp "$src" "$dst"
+    echo "Created avatars/openclaw.png from templates/avatars/openclaw.png (user-owned; replace with your image)"
+  fi
+}
+
 step "GardenGnome installer — prerequisites"
 require_cmd bash
 ensure_prerequisites
@@ -553,6 +568,7 @@ if [[ -f "$ROOT/.env" ]]; then
 fi
 ensure_garden_env "$ROOT"
 ensure_workspace_personal_docs "$ROOT"
+ensure_workspace_avatar_placeholder "$ROOT"
 install_python_requirements "$ROOT"
 
 step "2/8 Database (connectivity + optional schema)"
